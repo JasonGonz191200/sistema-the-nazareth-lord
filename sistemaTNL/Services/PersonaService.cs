@@ -157,11 +157,11 @@ public class PersonaService : IPersonaService
         .Include(p => p.Tutor).Include(p => p.Estudiante).Include(p => p.Docente);
 
     private static PersonaResumen Mapear(Persona p, bool reutilizada) => new(
-        p.IdPersona, p.NombreCompleto, p.FechaNacimiento, p.Cedula, p.Celular, p.DireccionExacta,
-        p.IdBarrio, p.IdBarrioNavigation.IdMunicipio,
-        p.IdBarrioNavigation.IdMunicipioNavigation.IdDepartamento,
-        p.Tutor?.IdTutor, p.Tutor is not null, p.Estudiante is not null, p.Docente is not null,
-        reutilizada);
+     p.IdPersona, p.NombreCompleto, p.FechaNacimiento, p.Cedula, p.Celular, p.DireccionExacta,
+     p.IdBarrio, p.IdBarrioNavigation.IdMunicipio,
+     p.IdBarrioNavigation.IdMunicipioNavigation.IdDepartamento,
+     p.Tutor?.IdTutor, p.Tutor is not null, p.Estudiante is not null, p.Docente is not null,
+     reutilizada, p.Estudiante?.IdTutor);
 
     private static string? NormalizarCedula(string? c) =>
         string.IsNullOrWhiteSpace(c) ? null : c.Trim().ToUpperInvariant();

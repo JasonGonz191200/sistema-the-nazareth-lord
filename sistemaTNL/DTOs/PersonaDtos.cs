@@ -33,7 +33,8 @@ public record PersonaResumen(
     bool EsTutor,
     bool EsEstudiante,
     bool EsDocente,
-    bool Reutilizada);
+     bool Reutilizada,
+    int? IdTutorEstudiante);
 
 public record TutorItem(int IdTutor, int IdPersona, string NombreCompleto, string? Cedula);
 

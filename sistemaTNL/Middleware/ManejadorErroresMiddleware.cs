@@ -23,6 +23,9 @@ public class ManejadorErroresMiddleware
         catch (Exception ex) when (!ctx.Response.HasStarted)
         {
             var sql = BuscarSqlException(ex);
+            if (sql is not null)
+                foreach (SqlError e in sql.Errors)
+                    _log.LogWarning("SQL {Numero}: {Mensaje}", e.Number, e.Message);
             int estado;
             string mensaje;
 
@@ -32,6 +35,12 @@ public class ManejadorErroresMiddleware
                 mensaje = negocio.Message;
             }
             else if (sql is not null && sql.Number is >= 50001 and <= 50099)
+            {
+                // Regla de negocio lanzada desde la base (THROW): el mensaje ya es para el usuario
+                estado = StatusCodes.Status400BadRequest;
+                mensaje = sql.Message;
+            }
+            else if (sql is not null && sql.Number is 2627 or 2601)
             {
                 estado = StatusCodes.Status409Conflict;
                 mensaje = "Ya existe un registro con esos datos.";
