@@ -156,6 +156,117 @@ public class PersonaService : IPersonaService
         .Include(p => p.IdBarrioNavigation).ThenInclude(b => b.IdMunicipioNavigation)
         .Include(p => p.Tutor).Include(p => p.Estudiante).Include(p => p.Docente);
 
+    // Habilita o inhabilita un rol de la persona ("estudiante", "tutor" o "docente").
+    // Las reglas de negocio (tutor con estudiantes, docente con grupos, etc.) las
+    // valida la base de datos con triggers; aquí solo hacemos el cambio.
+    public async Task<RolEstadoResultado> CambiarEstadoRolAsync(
+        int idPersona, string rol, bool habilitado, int idUsuario, string? ip)
+    {
+        // Normalizamos el texto del rol para aceptar "Tutor", "TUTOR", etc.
+        rol = (rol ?? "").Trim().ToLowerInvariant();
+
+        // Cargamos la persona junto con sus roles para saber cuáles tiene
+        var persona = await _db.Personas
+            .Include(p => p.Tutor)
+            .Include(p => p.Estudiante)
+            .Include(p => p.Docente)
+            .FirstOrDefaultAsync(p => p.IdPersona == idPersona)
+            ?? throw new NegocioException("La persona no existe.");
+
+        // Según el rol pedido, validamos que lo tenga y le cambiamos el estado
+        switch (rol)
+        {
+            case "estudiante":
+                if (persona.Estudiante is null)
+                    throw new NegocioException("La persona no tiene el rol de estudiante.");
+                if (persona.Estudiante.Estado == habilitado)
+                    throw new NegocioException($"El rol de estudiante ya está {(habilitado ? "habilitado" : "inhabilitado")}.");
+                persona.Estudiante.Estado = habilitado;
+                break;
+
+            case "tutor":
+                if (persona.Tutor is null)
+                    throw new NegocioException("La persona no tiene el rol de tutor.");
+                if (persona.Tutor.Estado == habilitado)
+                    throw new NegocioException($"El rol de tutor ya está {(habilitado ? "habilitado" : "inhabilitado")}.");
+                persona.Tutor.Estado = habilitado;
+                break;
+
+            case "docente":
+                if (persona.Docente is null)
+                    throw new NegocioException("La persona no tiene el rol de docente.");
+                if (persona.Docente.Estado == habilitado)
+                    throw new NegocioException($"El rol de docente ya está {(habilitado ? "habilitado" : "inhabilitado")}.");
+                persona.Docente.Estado = habilitado;
+                break;
+
+            default:
+                throw new NegocioException("Rol no válido. Use: estudiante, tutor o docente.");
+        }
+
+        // Aquí los triggers de la base pueden rechazar el cambio (por ejemplo, un tutor
+        // con estudiantes vinculados). El middleware convierte ese error en un 400.
+        await _db.SaveChangesAsync();
+
+        // Dejamos constancia en la auditoría
+        await _auditoria.RegistrarAsync(
+            idUsuario,
+            habilitado ? "HABILITAR_ROL" : "INHABILITAR_ROL",
+            "persona", persona.IdPersona, ip,
+            $"Rol: {rol}");
+
+        return new RolEstadoResultado(rol, habilitado);
+    }
+    public async Task<PersonaResumen> ActualizarAsync(int idPersona, ActualizarPersonaRequest req, int idUsuario, string? ip)
+    {
+        var persona = await _db.Personas.FirstOrDefaultAsync(p => p.IdPersona == idPersona)
+            ?? throw new NegocioException("La persona no existe.");
+
+        var nombre = req.NombreCompleto?.Trim();
+        if (string.IsNullOrEmpty(nombre))
+            throw new NegocioException("El nombre completo es obligatorio.");
+        if (string.IsNullOrWhiteSpace(req.DireccionExacta))
+            throw new NegocioException("La dirección exacta es obligatoria.");
+        if (req.FechaNacimiento > DateOnly.FromDateTime(DateTime.Today))
+            throw new NegocioException("La fecha de nacimiento no puede ser futura.");
+        if (!await _db.Barrios.AnyAsync(b => b.IdBarrio == req.IdBarrio))
+            throw new NegocioException("El barrio seleccionado no existe.");
+
+        var cedula = NormalizarCedula(req.Cedula);
+        if (cedula is not null &&
+            await _db.Personas.AnyAsync(p => p.Cedula == cedula && p.IdPersona != idPersona))
+            throw new NegocioException("Ya existe otra persona con esa cédula.");
+
+        var cambios = new List<string>();
+        if (persona.NombreCompleto != nombre) cambios.Add("nombre");
+        if (persona.FechaNacimiento != req.FechaNacimiento) cambios.Add("fecha de nacimiento");
+        if (persona.Cedula != cedula) cambios.Add("cédula");
+        var celular = string.IsNullOrWhiteSpace(req.Celular) ? null : req.Celular.Trim();
+        if (persona.Celular != celular) cambios.Add("celular");
+        if (persona.IdBarrio != req.IdBarrio) cambios.Add("barrio");
+        if (persona.DireccionExacta != req.DireccionExacta.Trim()) cambios.Add("dirección");
+
+        if (cambios.Count == 0)
+            throw new NegocioException("No hay cambios para guardar.");
+
+        persona.NombreCompleto = nombre;
+        persona.FechaNacimiento = req.FechaNacimiento;
+        persona.Cedula = cedula;
+        persona.Celular = celular;
+        persona.IdBarrio = req.IdBarrio;
+        persona.DireccionExacta = req.DireccionExacta.Trim();
+
+        // La cédula obligatoria para mayores y la fecha futura las valida el trigger de persona
+        await _db.SaveChangesAsync();
+
+        await _auditoria.RegistrarAsync(idUsuario, "EDITAR_PERSONA", "persona", persona.IdPersona, ip,
+            "Campos modificados: " + string.Join(", ", cambios));
+
+        var resumen = await Consulta().FirstAsync(x => x.IdPersona == idPersona);
+        return Mapear(resumen, false);
+    }
+
+
     private static PersonaResumen Mapear(Persona p, bool reutilizada) => new(
      p.IdPersona, p.NombreCompleto, p.FechaNacimiento, p.Cedula, p.Celular, p.DireccionExacta,
      p.IdBarrio, p.IdBarrioNavigation.IdMunicipio,
@@ -165,4 +276,5 @@ public class PersonaService : IPersonaService
 
     private static string? NormalizarCedula(string? c) =>
         string.IsNullOrWhiteSpace(c) ? null : c.Trim().ToUpperInvariant();
+
 }

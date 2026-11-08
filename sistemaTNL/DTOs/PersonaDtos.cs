@@ -39,3 +39,17 @@ public record PersonaResumen(
 public record TutorItem(int IdTutor, int IdPersona, string NombreCompleto, string? Cedula);
 
 public record NuevoBarrioRequest(string Nombre, int IdMunicipio);
+
+public record ActualizarPersonaRequest(
+    string NombreCompleto,
+    DateOnly FechaNacimiento,
+    string? Cedula,
+    string? Celular,
+    int IdBarrio,
+    string DireccionExacta);
+
+// Cuerpo de la petición: true = habilitar el rol, false = inhabilitarlo
+public record CambiarEstadoRolRequest(bool Habilitado);
+
+// Respuesta: qué rol se modificó y en qué estado quedó
+public record RolEstadoResultado(string Rol, bool Habilitado);

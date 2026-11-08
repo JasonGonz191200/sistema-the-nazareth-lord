@@ -40,4 +40,25 @@ public class PersonasController : ControllerBase
             HttpContext.Connection.RemoteIpAddress?.ToString());
         return Created($"/api/personas/{r.IdPersona}", r);
     }
+
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> Actualizar(int id, ActualizarPersonaRequest req)
+    {
+        var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var r = await _personas.ActualizarAsync(id, req, idUsuario,
+            HttpContext.Connection.RemoteIpAddress?.ToString());
+        return Ok(r);
+    }
+    // PUT api/personas/{id}/roles/{rol}/estado
+    // Ejemplo: PUT api/personas/2/roles/tutor/estado con { "habilitado": false }
+    [HttpPut("{id:int}/roles/{rol}/estado")]
+    public async Task<IActionResult> CambiarEstadoRol(int id, string rol, CambiarEstadoRolRequest req)
+    {
+        // Id del usuario que inició sesión, para la auditoría
+        var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var r = await _personas.CambiarEstadoRolAsync(id, rol, req.Habilitado, idUsuario,
+            HttpContext.Connection.RemoteIpAddress?.ToString());
+        return Ok(r);
+    }
 }
