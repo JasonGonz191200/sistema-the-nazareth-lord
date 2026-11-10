@@ -20,6 +20,8 @@ builder.Services.AddScoped<IAuditoriaService, AuditoriaService>();
 builder.Services.AddScoped<IPersonaService, PersonaService>();
 // Tarea automática que finaliza los períodos vencidos (RN012)
 builder.Services.AddHostedService<FinalizarPeriodosService>();
+// Servicio de envío de correos (SMTP)
+builder.Services.AddScoped<ICorreoService, CorreoService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(o =>

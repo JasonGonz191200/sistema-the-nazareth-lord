@@ -1,0 +1,12 @@
+$kind: http-request
+name: ""
+url: https://localhost:7080/api/auth/recuperar
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"correo\": \"cmendoza@prueba.com\"\r
+
+    }"
+order: 1000
