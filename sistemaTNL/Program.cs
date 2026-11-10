@@ -18,6 +18,8 @@ builder.Services.AddScoped<IPasswordHasher<Usuario>, PasswordHasher<Usuario>>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAuditoriaService, AuditoriaService>();
 builder.Services.AddScoped<IPersonaService, PersonaService>();
+// Tarea automática que finaliza los períodos vencidos (RN012)
+builder.Services.AddHostedService<FinalizarPeriodosService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(o =>
