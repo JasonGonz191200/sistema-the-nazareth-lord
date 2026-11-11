@@ -427,3 +427,9 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Configuración de producción: contiene claves, nunca se sube a GitHub
+sistemaTNL/appsettings.Production.json
+
+# Perfiles de publicación: pueden contener credenciales de despliegue
+sistemaTNL/Properties/PublishProfiles/

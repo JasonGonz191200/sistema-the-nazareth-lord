@@ -66,6 +66,8 @@ var app = builder.Build();
 
 app.UseMiddleware<ManejadorErroresMiddleware>();
 app.UseHttpsRedirection();
+app.UseDefaultFiles();   // la dirección raíz "/" abre index.html
+app.UseStaticFiles();    // sirve los archivos de la carpeta wwwroot
 app.UseCors(PoliticaCors);
 app.UseAuthentication();
 app.UseAuthorization();

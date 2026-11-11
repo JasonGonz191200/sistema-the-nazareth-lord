@@ -1,0 +1,94 @@
+﻿/* Estilos comunes del sistema. Para cambiar los colores de la academia, editar solo estas variables. */
+:root {
+    --color-primario: #1f3a5f;
+    --color-primario-oscuro: #162b47;
+    --color-acento: #c8a24a;
+}
+
+/* ---------- Login ---------- */
+.fondo-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--color-primario), var(--color-primario-oscuro));
+    padding: 1rem;
+}
+
+.tarjeta-login {
+    width: 100%;
+    max-width: 420px;
+    border: 0;
+    border-radius: 1rem;
+}
+
+.btn-primario {
+    background: var(--color-primario);
+    border-color: var(--color-primario);
+    color: #fff;
+}
+
+    .btn-primario:hover {
+        background: var(--color-primario-oscuro);
+        border-color: var(--color-primario-oscuro);
+        color: #fff;
+    }
+
+/* ---------- Estructura general (menú lateral + contenido) ---------- */
+.barra-lateral {
+    width: 250px;
+    min-height: 100vh;
+    background: var(--color-primario);
+    color: #fff;
+}
+
+    .barra-lateral .marca {
+        padding: 1.25rem 1rem;
+        border-bottom: 1px solid rgba(255,255,255,.15);
+    }
+
+    .barra-lateral .nav-link {
+        color: rgba(255,255,255,.85);
+        border-radius: .5rem;
+        margin: .1rem .5rem;
+    }
+
+        .barra-lateral .nav-link:hover {
+            background: rgba(255,255,255,.12);
+            color: #fff;
+        }
+
+        .barra-lateral .nav-link.active {
+            background: var(--color-acento);
+            color: #1b1b1b;
+        }
+
+        .barra-lateral .nav-link.disabled {
+            color: rgba(255,255,255,.4);
+        }
+
+    .barra-lateral .seccion {
+        font-size: .72rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,.5);
+        padding: 1rem 1rem .25rem;
+    }
+
+.contenido {
+    flex: 1;
+    background: #f4f6f9;
+    min-height: 100vh;
+}
+
+/* En pantallas pequeñas el menú pasa arriba */
+@media (max-width: 768px) {
+    .estructura {
+        flex-direction: column;
+    }
+
+    .barra-lateral {
+        width: 100%;
+        min-height: auto;
+    }
+}
