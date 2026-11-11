@@ -1,0 +1,5 @@
+$kind: http-request
+name: ""
+url: https://localhost:7080/api/alertas
+method: OPTIONS
+order: 1000

@@ -41,10 +41,32 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization(o =>
     o.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
+
+// CORS: permite que el frontend (que corre en otro origen) llame a la API
+// enviando la cookie de sesión. Solo se aceptan los orígenes de la lista.
+const string PoliticaCors = "Frontend";
+builder.Services.AddCors(o => o.AddPolicy(PoliticaCors, p =>
+{
+    // En producción la lista sale de la configuración ("Cors:Origenes" en appsettings o variables de entorno)
+    var origenes = builder.Configuration.GetSection("Cors:Origenes").Get<string[]>();
+
+    // En desarrollo, si no se configuró nada, se aceptan los puertos habituales de los frontends
+    if (origenes is null || origenes.Length == 0)
+        origenes = builder.Environment.IsDevelopment()
+            ? new[] { "http://localhost:5173", "http://localhost:3000", "http://localhost:4200" }
+            : Array.Empty<string>();
+
+    p.WithOrigins(origenes)
+     .AllowAnyHeader()
+     .AllowAnyMethod()
+     .AllowCredentials();   // necesario para que el navegador envíe la cookie de sesión
+}));
+
 var app = builder.Build();
 
 app.UseMiddleware<ManejadorErroresMiddleware>();
 app.UseHttpsRedirection();
+app.UseCors(PoliticaCors);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
