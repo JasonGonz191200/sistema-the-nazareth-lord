@@ -9,7 +9,7 @@ const MENU = [
     { texto: 'Personas y roles', href: 'personas.html', activo: true },
 
     { seccion: 'Académico' },
-    { texto: 'Cursos y períodos', href: 'cursos.html', activo: false },
+    { texto: 'Cursos y períodos', href: 'cursos.html', activo: true },
     { texto: 'Grupos', href: 'grupos.html', activo: false },
     { texto: 'Asistencia', href: 'asistencia.html', activo: false },
 

@@ -1,0 +1,454 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Períodos - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h1 class="h3 mb-0">Períodos de inscripción</h1>
+                <div class="d-flex gap-2">
+                    <a href="cursos.html" class="btn btn-outline-secondary">← Cursos</a>
+                    <button type="button" id="btnNuevo" class="btn btn-primario">+ Nuevo período</button>
+                </div>
+            </div>
+
+            <div class="card card-body">
+                <!-- Filtros: el de texto se aplica mientras se escribe -->
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md">
+                        <input id="filtro" type="search" class="form-control" autocomplete="off"
+                               placeholder="Filtrar por curso o modalidad">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <select id="filtroEstado" class="form-select">
+                            <option value="">Todos los estados</option>
+                            <option value="Habilitado">Habilitado</option>
+                            <option value="Finalizado">Finalizado</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Mensajes (sin resultados, errores...) -->
+                <div id="mensaje"></div>
+
+                <!-- Tabla de períodos -->
+                <div id="resultado" class="table-responsive"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Ventana para crear o editar un período ===== -->
+    <div class="modal fade" id="modalPeriodo" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="modalTitulo">Nuevo período</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalMensaje"></div>
+                    <form id="formPeriodo" class="row g-3" novalidate>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="selCurso">Curso</label>
+                            <select id="selCurso" class="form-select"></select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="selModalidad">Modalidad</label>
+                            <select id="selModalidad" class="form-select"></select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="fIniInsc">Inicio de inscripción</label>
+                            <input id="fIniInsc" type="date" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="fFinInsc">Fin de inscripción</label>
+                            <input id="fFinInsc" type="date" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="fIniCurso">Inicio del curso</label>
+                            <input id="fIniCurso" type="date" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="fFinCurso">Fin del curso</label>
+                            <input id="fFinCurso" type="date" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-text">Ninguna fecha puede ser anterior a la fecha de creación del período (hoy, al crearlo).</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btnGuardar" class="btn btn-primario">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Ventana de cierre de inscripción (irreversible) ===== -->
+    <div class="modal fade" id="modalCierre" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="cierreTitulo">Cerrar inscripción</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="cierreMensaje"></div>
+                    <!-- Aquí se dibuja la vista previa -->
+                    <div id="cierreContenido"></div>
+                    <!-- Casilla de confirmación: solo aparece si el cierre es posible -->
+                    <div id="cierreConfirmar" class="mt-3 d-none">
+                        <label class="form-label" for="campoConfirmar">Para confirmar, escriba <strong>CERRAR</strong>:</label>
+                        <input id="campoConfirmar" class="form-control" autocomplete="off">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btnCerrarInsc" class="btn btn-danger" disabled>Cerrar inscripción</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+            // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+            let periodos = [];             // todos los períodos traídos del servidor
+            let idEditando = null;         // null = se está creando; número = se está editando ese período
+            const modal = new bootstrap.Modal(el('modalPeriodo'));
+            const modalCierre = new bootstrap.Modal(el('modalCierre'));
+            let periodoCierre = null;      // período que se está revisando para cerrar su inscripción
+
+            // ---------- Utilidades ----------
+            // Quita acentos y pasa a minúsculas, para filtrar sin distinguir acentos
+            function normalizar(t) {
+              return (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            }
+
+            // "2026-12-01" -> "01/12/2026" (sin pasar por Date para evitar corrimientos de zona horaria)
+            function fechaCorta(iso) {
+              if (!iso) return '—';
+              const [a, m, d] = iso.substring(0, 10).split('-');
+              return `${d}/${m}/${a}`;
+            }
+
+            // Mensaje en la pantalla principal
+            function mostrarMensaje(tipo, texto) {
+              const caja = el('mensaje');
+              caja.replaceChildren();
+              if (!tipo) return;
+              const d = document.createElement('div');
+              d.className = `alert alert-${tipo}`;
+              d.textContent = texto;      // textContent: nunca se interpreta como código
+              caja.appendChild(d);
+            }
+
+            // Mensaje dentro de la ventana de crear/editar
+            function mensajeModal(tipo, texto) {
+              const caja = el('modalMensaje');
+              caja.replaceChildren();
+              if (!tipo) return;
+              const d = document.createElement('div');
+              d.className = `alert alert-${tipo}`;
+              d.textContent = texto;
+              caja.appendChild(d);
+            }
+
+            // Mensaje dentro de la ventana de cierre
+            function mensajeCierre(tipo, texto) {
+              const caja = el('cierreMensaje');
+              caja.replaceChildren();
+              if (!tipo) return;
+              const d = document.createElement('div');
+              d.className = `alert alert-${tipo}`;
+              d.textContent = texto;
+              caja.appendChild(d);
+            }
+
+            // Etiqueta verde "Habilitado" o gris "Finalizado"
+            function etiquetaEstado(estado) {
+              const s = document.createElement('span');
+              s.className = 'badge ' + (estado === 'Habilitado' ? 'text-bg-success' : 'text-bg-secondary');
+              s.textContent = estado;
+              return s;
+            }
+
+            // Llena un <select> con opciones { valor, texto }
+            function llenarSelect(select, opciones, textoVacio) {
+              select.replaceChildren();
+              const vacia = document.createElement('option');
+              vacia.value = '';
+              vacia.textContent = textoVacio;
+              select.appendChild(vacia);
+              for (const o of opciones) {
+                const op = document.createElement('option');
+                op.value = String(o.valor);
+                op.textContent = o.texto;
+                select.appendChild(op);
+              }
+            }
+
+            // ---------- Datos de apoyo: cursos y modalidades habilitados ----------
+            async function cargarApoyo() {
+              const c = await api('/api/cursos');
+              const cursosOk = (c.ok ? c.datos : []).filter((x) => x.estado);
+              llenarSelect(el('selCurso'), cursosOk.map((x) => ({ valor: x.idCurso, texto: x.nombre })), 'Seleccione...');
+
+              const m = await api('/api/modalidades');
+              const modOk = (m.ok ? m.datos : []).filter((x) => x.estado);
+              llenarSelect(el('selModalidad'), modOk.map((x) => ({ valor: x.idModalidad, texto: x.nombre })), 'Seleccione...');
+            }
+
+            // ---------- Lista ----------
+            async function cargarPeriodos() {
+              mostrarMensaje('secondary', 'Cargando...');
+              const r = await api('/api/periodos');
+              if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+              periodos = r.datos;
+              mostrarMensaje(null, '');
+              dibujar();
+            }
+
+            // Dibuja la tabla aplicando los filtros
+            function dibujar() {
+              const f = normalizar(el('filtro').value.trim());
+              const estado = el('filtroEstado').value;
+              const filas = periodos.filter((p) =>
+                normalizar(p.curso + ' ' + p.modalidad).includes(f) && (!estado || p.estado === estado));
+
+              if (filas.length === 0) {
+                el('resultado').replaceChildren();
+                mostrarMensaje('warning', periodos.length === 0 ? 'Todavía no hay períodos registrados.' : 'Ningún período coincide con el filtro.');
+                return;
+              }
+              mostrarMensaje(null, '');
+
+              const tabla = document.createElement('table');
+              tabla.className = 'table table-hover align-middle';
+              const cab = tabla.createTHead().insertRow();
+              for (const t of ['Curso', 'Modalidad', 'Inscripción', 'Curso (fechas)', 'Estado', '']) {
+                const th = document.createElement('th');
+                th.textContent = t;
+                cab.appendChild(th);
+              }
+
+              const cuerpo = tabla.createTBody();
+              for (const p of filas) {
+                const tr = cuerpo.insertRow();
+                tr.insertCell().textContent = p.curso;
+                tr.insertCell().textContent = p.modalidad;
+                tr.insertCell().textContent = `${fechaCorta(p.fechaInicioInscripcion)} al ${fechaCorta(p.fechaFinInscripcion)}`;
+                tr.insertCell().textContent = `${fechaCorta(p.fechaInicioCurso)} al ${fechaCorta(p.fechaFinCurso)}`;
+                tr.insertCell().appendChild(etiquetaEstado(p.estado));
+
+                // Un período finalizado no se modifica (RN012): no lleva botones
+                const acciones = tr.insertCell();
+                acciones.className = 'text-end text-nowrap';
+                if (p.estado !== 'Finalizado') {
+                  const b = document.createElement('button');
+                  b.type = 'button';
+                  b.className = 'btn btn-sm btn-outline-primary';
+                  b.textContent = 'Editar';
+                  b.addEventListener('click', () => abrirEdicion(p));
+                  acciones.appendChild(b);
+
+                  // Botón para cerrar la inscripción (abre primero la vista previa)
+                  const bc = document.createElement('button');
+                  bc.type = 'button';
+                  bc.className = 'btn btn-sm btn-outline-danger ms-2';
+                  bc.textContent = 'Cerrar inscripción';
+                  bc.addEventListener('click', () => abrirCierre(p));
+                  acciones.appendChild(bc);
+                }
+              }
+              el('resultado').replaceChildren(tabla);
+            }
+
+            // Filtros mientras se escribe (la lista ya está en memoria, no hace falta esperar)
+            el('filtro').addEventListener('input', dibujar);
+            el('filtroEstado').addEventListener('change', dibujar);
+
+            // ---------- Crear / editar ----------
+            function limpiarFormulario() {
+              el('selCurso').value = '';
+              el('selModalidad').value = '';
+              for (const id of ['fIniInsc', 'fFinInsc', 'fIniCurso', 'fFinCurso']) el(id).value = '';
+              mensajeModal(null, '');
+            }
+
+            el('btnNuevo').addEventListener('click', () => {
+              idEditando = null;
+              el('modalTitulo').textContent = 'Nuevo período';
+              limpiarFormulario();
+              modal.show();
+            });
+
+            function abrirEdicion(p) {
+              idEditando = p.idPeriodo;
+              el('modalTitulo').textContent = 'Editar período';
+              limpiarFormulario();
+              el('selCurso').value = String(p.idCurso);
+              el('selModalidad').value = String(p.idModalidad);
+              // El campo date necesita solo los 10 primeros caracteres ("2026-12-01")
+              el('fIniInsc').value = (p.fechaInicioInscripcion ?? '').substring(0, 10);
+              el('fFinInsc').value = (p.fechaFinInscripcion ?? '').substring(0, 10);
+              el('fIniCurso').value = (p.fechaInicioCurso ?? '').substring(0, 10);
+              el('fFinCurso').value = (p.fechaFinCurso ?? '').substring(0, 10);
+              modal.show();
+            }
+
+            el('btnGuardar').addEventListener('click', async () => {
+              mensajeModal(null, '');
+
+              const cuerpo = {
+                idCurso: Number(el('selCurso').value),
+                idModalidad: Number(el('selModalidad').value),
+                fechaInicioInscripcion: el('fIniInsc').value,
+                fechaFinInscripcion: el('fFinInsc').value,
+                fechaInicioCurso: el('fIniCurso').value,
+                fechaFinCurso: el('fFinCurso').value,
+              };
+
+              // Validaciones simples (las reglas de fechas las valida el servidor)
+              if (!cuerpo.idCurso) { mensajeModal('warning', 'Seleccione el curso.'); return; }
+              if (!cuerpo.idModalidad) { mensajeModal('warning', 'Seleccione la modalidad.'); return; }
+              if (!cuerpo.fechaInicioInscripcion || !cuerpo.fechaFinInscripcion ||
+                  !cuerpo.fechaInicioCurso || !cuerpo.fechaFinCurso) {
+                mensajeModal('warning', 'Complete las cuatro fechas.');
+                return;
+              }
+
+              const boton = el('btnGuardar');
+              boton.disabled = true;
+              // Si hay un período en edición se actualiza (PUT); si no, se crea (POST)
+              const r = idEditando
+                ? await api(`/api/periodos/${idEditando}`, { method: 'PUT', body: cuerpo })
+                : await api('/api/periodos', { method: 'POST', body: cuerpo });
+              boton.disabled = false;
+
+              if (!r.ok) { mensajeModal('danger', mensajeError(r)); return; }
+
+              modal.hide();
+              await cargarPeriodos();
+              mostrarMensaje('success', idEditando ? 'Período actualizado.' : 'Período creado.');
+            });
+
+            // ---------- Cierre de inscripción ----------
+            // Una línea "Etiqueta: valor" para el resumen
+            function lineaResumen(etiqueta, valor) {
+              const p = document.createElement('p');
+              p.className = 'mb-1';
+              const b = document.createElement('strong');
+              b.textContent = etiqueta + ': ';
+              p.append(b, document.createTextNode(String(valor)));
+              return p;
+            }
+
+            // Abre la ventana y trae la vista previa (esto NO modifica nada)
+            async function abrirCierre(p) {
+              periodoCierre = p;
+              el('cierreTitulo').textContent = `Cerrar inscripción: ${p.curso} (${p.modalidad})`;
+              el('cierreContenido').replaceChildren();
+              el('cierreConfirmar').classList.add('d-none');
+              el('campoConfirmar').value = '';
+              el('btnCerrarInsc').disabled = true;
+              mensajeCierre('secondary', 'Calculando vista previa...');
+              modalCierre.show();
+
+              const r = await api(`/api/periodos/${p.idPeriodo}/cierre-inscripcion`);
+              if (!r.ok) { mensajeCierre('danger', mensajeError(r)); return; }
+              const v = r.datos;
+
+              // Resumen
+              const caja = el('cierreContenido');
+              caja.replaceChildren(
+                lineaResumen('Fin de inscripción', fechaCorta(v.fechaFinInscripcion)),
+                lineaResumen('Mínimo de estudiantes por grupo', v.minimoPorGrupo),
+                lineaResumen('Grupos que se cerrarían', v.gruposQueSeCerrarian),
+                lineaResumen('Matrículas que se inhabilitarían', v.matriculasQueSeInhabilitarian),
+              );
+              if (v.elPeriodoQuedariaInhabilitado && v.grupos.length > 0) {
+                const a = document.createElement('div');
+                a.className = 'alert alert-warning mt-2';
+                a.textContent = 'Ningún grupo alcanza el mínimo: el período quedaría inhabilitado.';
+                caja.appendChild(a);
+              }
+
+              // Tabla con el detalle por grupo
+              if (v.grupos.length > 0) {
+                const tabla = document.createElement('table');
+                tabla.className = 'table table-sm mt-3';
+                const cab = tabla.createTHead().insertRow();
+                for (const t of ['Grupo', 'Inscritos', 'Resultado']) {
+                  const th = document.createElement('th');
+                  th.textContent = t;
+                  cab.appendChild(th);
+                }
+                const cuerpo = tabla.createTBody();
+                for (const g of v.grupos) {
+                  const tr = cuerpo.insertRow();
+                  tr.insertCell().textContent = g.identificacion;
+                  tr.insertCell().textContent = String(g.inscritos);
+                  tr.insertCell().textContent = g.seCerraria ? 'Se cierra (no llega al mínimo)' : 'Continúa';
+                }
+                caja.appendChild(tabla);
+              }
+
+              // Advertencia de que es irreversible
+              const adv = document.createElement('p');
+              adv.className = 'text-danger small mt-2';
+              adv.textContent = v.advertencia;
+              caja.appendChild(adv);
+
+              // Si todavía no se puede cerrar, se explica el motivo y no se pide confirmación
+              if (!v.puedeCerrar) {
+                mensajeCierre('info', v.motivoNoPuedeCerrar);
+                return;
+              }
+              mensajeCierre(null, '');
+              el('cierreConfirmar').classList.remove('d-none');
+            }
+
+            // El botón rojo solo se activa cuando se escribe exactamente CERRAR
+            el('campoConfirmar').addEventListener('input', () => {
+              el('btnCerrarInsc').disabled = el('campoConfirmar').value.trim() !== 'CERRAR';
+            });
+
+            el('btnCerrarInsc').addEventListener('click', async () => {
+              el('btnCerrarInsc').disabled = true;
+              const r = await api(`/api/periodos/${periodoCierre.idPeriodo}/cierre-inscripcion`, {
+                method: 'POST',
+                body: { confirmar: true },
+              });
+              if (!r.ok) {
+                mensajeCierre('danger', mensajeError(r));
+                return;
+              }
+              modalCierre.hide();
+              await cargarPeriodos();
+              mostrarMensaje('success',
+                `${r.datos.mensaje} Matrículas inhabilitadas: ${r.datos.matriculasInhabilitadas}. Estado del período: ${r.datos.estadoPeriodo}.`);
+            });
+
+            // ---------- Inicio ----------
+            // Se marca "Cursos y períodos" en el menú porque esta pantalla pertenece a ese módulo
+            montarLayout('cursos.html');
+            cargarApoyo();
+            cargarPeriodos();
+    </script>
+</body>
+</html>
