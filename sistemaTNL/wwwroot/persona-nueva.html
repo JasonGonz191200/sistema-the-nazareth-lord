@@ -1,0 +1,423 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Registrar persona - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3 mb-0">Registrar persona</h1>
+                <a href="personas.html" class="btn btn-outline-secondary">Volver</a>
+            </div>
+
+            <!-- Mensajes de error o de aviso -->
+            <div id="mensaje"></div>
+
+            <!-- Resultado cuando el registro sale bien -->
+            <div id="exito" class="d-none"></div>
+
+            <form id="formPersona" class="card card-body" novalidate>
+
+                <!-- ===== Datos generales ===== -->
+                <h2 class="h6 text-uppercase text-muted">Datos generales</h2>
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="campoCedula">Cédula</label>
+                        <input id="campoCedula" class="form-control" maxlength="20" autocomplete="off">
+                        <div class="form-text">Obligatoria para mayores de edad. Si ya está registrada, se reutiliza la persona.</div>
+                    </div>
+
+                    <!-- Aviso cuando la cédula ya existe -->
+                    <div class="col-12 d-none" id="avisoExistente"></div>
+
+                    <div class="col-12 col-md-8">
+                        <label class="form-label" for="campoNombre">Nombre completo</label>
+                        <input id="campoNombre" class="form-control" maxlength="150">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="campoFecha">Fecha de nacimiento</label>
+                        <input id="campoFecha" type="date" class="form-control">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="campoCelular">Celular</label>
+                        <input id="campoCelular" class="form-control" maxlength="20">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="selDepartamento">Departamento</label>
+                        <select id="selDepartamento" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="selMunicipio">Municipio</label>
+                        <select id="selMunicipio" class="form-select"></select>
+                        <button type="button" id="btnNuevoMunicipio" class="btn btn-link btn-sm p-0 mt-1">¿No aparece el municipio? Agregarlo</button>
+                        <div id="cajaMunicipio" class="input-group mt-2 d-none">
+                            <input id="campoMunicipioNuevo" class="form-control" placeholder="Nombre del municipio" maxlength="100">
+                            <button type="button" id="btnGuardarMunicipio" class="btn btn-outline-primary">Agregar</button>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="selBarrio">Barrio</label>
+                        <select id="selBarrio" class="form-select"></select>
+                        <button type="button" id="btnNuevoBarrio" class="btn btn-link btn-sm p-0 mt-1">¿No aparece el barrio? Agregarlo</button>
+                        <div id="cajaBarrio" class="input-group mt-2 d-none">
+                            <input id="campoBarrioNuevo" class="form-control" placeholder="Nombre del barrio" maxlength="100">
+                            <button type="button" id="btnGuardarBarrio" class="btn btn-outline-primary">Agregar</button>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-8">
+                        <label class="form-label" for="campoDireccion">Dirección exacta</label>
+                        <input id="campoDireccion" class="form-control" maxlength="250">
+                    </div>
+                </div>
+
+                <!-- ===== Roles ===== -->
+                <h2 class="h6 text-uppercase text-muted">Roles</h2>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="chkTutor">
+                    <label class="form-check-label" for="chkTutor">Tutor</label>
+                </div>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="chkEstudiante">
+                    <label class="form-check-label" for="chkEstudiante">Estudiante</label>
+                </div>
+                <div id="panelEstudiante" class="ms-4 mb-3 d-none">
+                    <label class="form-label" for="selTutor">Tutor responsable</label>
+                    <select id="selTutor" class="form-select"></select>
+                    <div id="ayudaTutor" class="form-text"></div>
+                </div>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="chkDocente">
+                    <label class="form-check-label" for="chkDocente">Docente</label>
+                </div>
+                <div id="panelDocente" class="ms-4 mb-3 d-none">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="chkLicenciado">
+                        <label class="form-check-label" for="chkLicenciado">Es licenciado</label>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="campoAnios">Años de experiencia</label>
+                            <input id="campoAnios" type="number" min="0" max="80" value="0" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label" for="campoInstituciones">Instituciones donde ha laborado</label>
+                            <input id="campoInstituciones" class="form-control" maxlength="500">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Disponibilidad (al menos una)</label>
+                            <div id="cajaModalidades" class="d-flex flex-wrap gap-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" id="btnRegistrar" class="btn btn-primario">Registrar</button>
+                    <a href="personas.html" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script src="js/ubicaciones.js"></script>
+    <script>
+    // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+    let personaExistente = null;   // se llena si la cédula ya está registrada
+    const EDAD_MAYORIA = 18;       // solo para el texto de ayuda; la regla real la valida el servidor
+
+    // Campos de datos generales (se bloquean cuando se reutiliza una persona)
+    const CAMPOS_GENERALES = ['campoNombre', 'campoFecha', 'campoCelular', 'campoDireccion',
+                              'selDepartamento', 'selMunicipio', 'selBarrio'];
+
+    // ---------- Mensajes ----------
+    function mostrarMensaje(tipo, texto) {
+      const caja = el('mensaje');
+      caja.replaceChildren();
+      if (!tipo) return;
+      const d = document.createElement('div');
+      d.className = `alert alert-${tipo}`;
+      d.textContent = texto;
+      caja.appendChild(d);
+    }
+
+    // ---------- Datos de apoyo ----------
+    // Tutores habilitados para el desplegable del estudiante
+    async function cargarTutores() {
+      const r = await api('/api/personas/tutores');
+      const sel = el('selTutor');
+      sel.replaceChildren();
+      const sin = document.createElement('option');
+      sin.value = '';
+      sin.textContent = '— Sin tutor (solo mayores de edad) —';
+      sel.appendChild(sin);
+      for (const t of (r.ok ? r.datos : [])) {
+        const o = document.createElement('option');
+        o.value = String(t.idTutor);
+        o.textContent = t.nombreCompleto + (t.cedula ? ` (${t.cedula})` : '');
+        sel.appendChild(o);
+      }
+    }
+
+    // Modalidades habilitadas, como casillas
+    async function cargarModalidades() {
+      const r = await api('/api/modalidades');
+      const caja = el('cajaModalidades');
+      caja.replaceChildren();
+      for (const m of (r.ok ? r.datos : []).filter((x) => x.estado)) {
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.className = 'form-check-input modalidad';
+        chk.id = 'mod' + m.idModalidad;
+        chk.value = String(m.idModalidad);
+        const lbl = document.createElement('label');
+        lbl.className = 'form-check-label';
+        lbl.htmlFor = chk.id;
+        lbl.textContent = m.nombre;
+        div.append(chk, lbl);
+        caja.appendChild(div);
+      }
+    }
+
+    // ---------- Edad y ayuda del tutor ----------
+    function edadActual() {
+      const f = el('campoFecha').value;
+      if (!f) return null;
+      const n = new Date(f + 'T00:00:00');
+      const hoy = new Date();
+      let edad = hoy.getFullYear() - n.getFullYear();
+      const cumple = new Date(hoy.getFullYear(), n.getMonth(), n.getDate());
+      if (hoy < cumple) edad--;
+      return edad;
+    }
+
+    function actualizarAyudaTutor() {
+      const edad = edadActual();
+      const ayuda = el('ayudaTutor');
+      if (edad === null) ayuda.textContent = 'Indique la fecha de nacimiento para saber si el tutor es obligatorio.';
+      else if (edad < EDAD_MAYORIA) ayuda.textContent = `Tiene ${edad} años: es menor de edad, el tutor es obligatorio.`;
+      else ayuda.textContent = `Tiene ${edad} años: es mayor de edad, el tutor es opcional.`;
+    }
+
+    // ---------- Mostrar u ocultar los paneles de cada rol ----------
+    el('chkEstudiante').addEventListener('change', (e) => {
+      el('panelEstudiante').classList.toggle('d-none', !e.target.checked);
+      actualizarAyudaTutor();
+    });
+    el('chkDocente').addEventListener('change', (e) => {
+      el('panelDocente').classList.toggle('d-none', !e.target.checked);
+    });
+    el('campoFecha').addEventListener('change', actualizarAyudaTutor);
+
+    // ---------- Cédula ya registrada (RN017) ----------
+    function bloquearGenerales(bloquear) {
+      for (const id of CAMPOS_GENERALES) el(id).disabled = bloquear;
+        el('btnNuevoBarrio').classList.toggle('d-none', bloquear);
+        el('btnNuevoMunicipio').classList.toggle('d-none', bloquear);
+    }
+
+    // Si se edita la cédula después de haber detectado una persona, se vuelve al estado inicial
+    el('campoCedula').addEventListener('input', () => {
+      if (!personaExistente) return;
+      personaExistente = null;
+      bloquearGenerales(false);
+      for (const id of CAMPOS_GENERALES) { if (!id.startsWith('sel')) el(id).value = ''; }
+      iniciarUbicaciones(el('selDepartamento'), el('selMunicipio'), el('selBarrio'));
+      el('avisoExistente').classList.add('d-none');
+      for (const id of ['chkTutor', 'chkEstudiante', 'chkDocente']) {
+        el(id).disabled = false;
+        el(id).checked = false;
+      }
+      el('panelEstudiante').classList.add('d-none');
+      el('panelDocente').classList.add('d-none');
+    });
+
+    // Al salir del campo cédula se busca si la persona ya existe
+    el('campoCedula').addEventListener('blur', async () => {
+      const cedula = el('campoCedula').value.trim();
+      if (!cedula || personaExistente) return;
+
+      const r = await api(`/api/personas/buscar?cedula=${encodeURIComponent(cedula)}`);
+      if (!r.ok) return;   // 404 = no existe: es una persona nueva
+
+      const p = r.datos;
+      personaExistente = p;
+
+      // Se muestran sus datos actuales (no editables aquí)
+      el('campoNombre').value = p.nombreCompleto ?? '';
+      el('campoFecha').value = p.fechaNacimiento ?? '';
+      el('campoCelular').value = p.celular ?? '';
+      el('campoDireccion').value = p.direccionExacta ?? '';
+      llenarSelect(el('selDepartamento'), await (async () => {
+        const d = await api('/api/ubicaciones/departamentos');
+        return d.ok ? d.datos : [];
+      })(), 'idDepartamento', p.idDepartamento);
+      await cargarMunicipios(el('selMunicipio'), p.idDepartamento, p.idMunicipio);
+      await cargarBarrios(el('selBarrio'), p.idMunicipio, p.idBarrio);
+      bloquearGenerales(true);
+
+      // Aviso y roles que ya tiene (esos se bloquean)
+      const aviso = el('avisoExistente');
+      aviso.className = 'col-12';
+      aviso.replaceChildren();
+      const d = document.createElement('div');
+      d.className = 'alert alert-info mb-0';
+      d.textContent = `Esta persona ya está registrada (${p.nombreCompleto}). Se conservan sus datos y solo se le agregarán los roles que marque.`;
+      aviso.appendChild(d);
+
+      const tiene = { chkTutor: p.esTutor, chkEstudiante: p.esEstudiante, chkDocente: p.esDocente };
+      for (const [id, ya] of Object.entries(tiene)) {
+        el(id).disabled = !!ya;
+        if (ya) el(id).checked = false;
+      }
+      actualizarAyudaTutor();
+    });
+
+// ---------- Agregar un municipio nuevo ----------
+// Muestra u oculta la cajita para escribir el nombre
+el('btnNuevoMunicipio').addEventListener('click', () => {
+    el('cajaMunicipio').classList.toggle('d-none');
+});
+
+el('btnGuardarMunicipio').addEventListener('click', async () => {
+    const nombre = el('campoMunicipioNuevo').value.trim();
+    const idDepartamento = Number(el('selDepartamento').value);
+    // Validaciones simples antes de llamar al servidor
+    if (!idDepartamento) { mostrarMensaje('warning', 'Seleccione primero el departamento.'); return; }
+    if (!nombre) { mostrarMensaje('warning', 'Escriba el nombre del municipio.'); return; }
+
+    const r = await api('/api/ubicaciones/municipios', { method: 'POST', body: { nombre, idDepartamento } });
+    if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+
+    // Se recarga la lista de municipios y se deja seleccionado el nuevo
+    await cargarMunicipios(el('selMunicipio'), idDepartamento, r.datos.idMunicipio);
+    // Como el municipio es nuevo, todavía no tiene barrios
+    await cargarBarrios(el('selBarrio'), r.datos.idMunicipio);
+    el('campoMunicipioNuevo').value = '';
+    el('cajaMunicipio').classList.add('d-none');
+    mostrarMensaje('success', `Municipio "${nombre}" agregado. Ahora agregá su barrio.`);
+});
+
+// ---------- Agregar un barrio nuevo (RN016) ----------
+
+    el('btnNuevoBarrio').addEventListener('click', () => {
+      el('cajaBarrio').classList.toggle('d-none');
+    });
+
+    el('btnGuardarBarrio').addEventListener('click', async () => {
+      const nombre = el('campoBarrioNuevo').value.trim();
+      const idMunicipio = Number(el('selMunicipio').value);
+      if (!idMunicipio) { mostrarMensaje('warning', 'Seleccione primero el departamento y el municipio.'); return; }
+      if (!nombre) { mostrarMensaje('warning', 'Escriba el nombre del barrio.'); return; }
+
+      const r = await api('/api/ubicaciones/barrios', { method: 'POST', body: { nombre, idMunicipio } });
+      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+
+      // Se recarga la lista y se deja seleccionado el barrio nuevo
+      await cargarBarrios(el('selBarrio'), idMunicipio);
+      const opcion = [...el('selBarrio').options].find((o) => o.textContent === nombre);
+      if (opcion) el('selBarrio').value = opcion.value;
+      el('campoBarrioNuevo').value = '';
+      el('cajaBarrio').classList.add('d-none');
+      mostrarMensaje('success', `Barrio "${nombre}" agregado.`);
+    });
+
+    // ---------- Registrar ----------
+    el('formPersona').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      mostrarMensaje(null, '');
+
+      const cuerpo = {
+        nombreCompleto: el('campoNombre').value.trim(),
+        fechaNacimiento: el('campoFecha').value,
+        cedula: el('campoCedula').value.trim() || null,
+        celular: el('campoCelular').value.trim() || null,
+        idBarrio: Number(el('selBarrio').value),
+        direccionExacta: el('campoDireccion').value.trim(),
+        esTutor: el('chkTutor').checked && !el('chkTutor').disabled,
+        estudiante: null,
+        docente: null,
+      };
+
+      // Validaciones simples (las reglas de negocio las valida el servidor)
+      if (!cuerpo.nombreCompleto) { mostrarMensaje('warning', 'El nombre es obligatorio.'); return; }
+      if (!cuerpo.fechaNacimiento) { mostrarMensaje('warning', 'La fecha de nacimiento es obligatoria.'); return; }
+      if (!cuerpo.idBarrio) { mostrarMensaje('warning', 'Seleccione el departamento, el municipio y el barrio.'); return; }
+      if (!cuerpo.direccionExacta) { mostrarMensaje('warning', 'La dirección exacta es obligatoria.'); return; }
+
+      // Rol estudiante
+      if (el('chkEstudiante').checked && !el('chkEstudiante').disabled) {
+        const t = el('selTutor').value;
+        cuerpo.estudiante = { idTutor: t ? Number(t) : null };
+      }
+
+      // Rol docente
+      if (el('chkDocente').checked && !el('chkDocente').disabled) {
+        const ids = [...document.querySelectorAll('.modalidad:checked')].map((c) => Number(c.value));
+        if (ids.length === 0) { mostrarMensaje('warning', 'Seleccione al menos una modalidad de disponibilidad para el docente.'); return; }
+        const anios = Number(el('campoAnios').value);
+        if (!Number.isInteger(anios) || anios < 0) { mostrarMensaje('warning', 'Los años de experiencia deben ser un número entero (0 o más).'); return; }
+        cuerpo.docente = {
+          esLicenciado: el('chkLicenciado').checked,
+          aniosExperiencia: anios,
+          institucionesLaborales: el('campoInstituciones').value.trim() || null,
+          idModalidades: ids,
+        };
+      }
+
+      const sinRoles = !cuerpo.esTutor && !cuerpo.estudiante && !cuerpo.docente;
+      if (sinRoles && !confirm('No marcó ningún rol. ¿Registrar la persona sin roles?')) return;
+
+      const boton = el('btnRegistrar');
+      boton.disabled = true;
+      const r = await api('/api/personas', { method: 'POST', body: cuerpo });
+      boton.disabled = false;
+
+      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+
+      // Registro correcto: se oculta el formulario y se muestra el resultado
+      el('formPersona').classList.add('d-none');
+      const ok = el('exito');
+      ok.className = '';
+      ok.replaceChildren();
+      const alerta = document.createElement('div');
+      alerta.className = 'alert alert-success';
+      alerta.textContent = r.datos?.reutilizada
+        ? `Se agregaron los roles a ${r.datos.nombreCompleto}.`
+        : `${r.datos?.nombreCompleto} se registró correctamente.`;
+      const otra = document.createElement('a');
+      otra.href = 'persona-nueva.html';
+      otra.className = 'btn btn-primario me-2';
+      otra.textContent = 'Registrar otra persona';
+      const ver = document.createElement('a');
+      ver.href = 'personas.html';
+      ver.className = 'btn btn-outline-secondary';
+      ver.textContent = 'Ir a Personas';
+      ok.append(alerta, otra, ver);
+    });
+
+    // ---------- Inicio ----------
+    montarLayout('personas.html');
+    iniciarUbicaciones(el('selDepartamento'), el('selMunicipio'), el('selBarrio'));
+    cargarTutores();
+    cargarModalidades();
+    actualizarAyudaTutor();
+    </script>
+</body>
+</html>

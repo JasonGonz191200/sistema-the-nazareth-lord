@@ -29,8 +29,9 @@ public class PersonasController : ControllerBase
     }
 
     [HttpGet("tutores")]
-    public async Task<IActionResult> Tutores([FromQuery] string? buscar) =>
-        Ok(await _personas.ListarTutoresAsync(buscar));
+    public async Task<IActionResult> Tutores(
+    [FromQuery] string? buscar, [FromQuery] bool incluirInhabilitados = false) =>
+    Ok(await _personas.ListarTutoresAsync(buscar, incluirInhabilitados));
 
     [HttpPost]
     public async Task<IActionResult> Registrar(RegistrarPersonaRequest req)

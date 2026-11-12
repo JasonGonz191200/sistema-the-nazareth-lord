@@ -29,7 +29,7 @@ public class ConsultasController : ControllerBase
         var s = texto.Trim();
         var resultados = await _db.Estudiantes.AsNoTracking()
             .Where(e =>
-                e.IdPersonaNavigation.NombreCompleto.Contains(s) ||
+                EF.Functions.Collate(e.IdPersonaNavigation.NombreCompleto, "Latin1_General_CI_AI").Contains(s) ||
                 (e.NumeroCarne != null && e.NumeroCarne.Contains(s)) ||
                 (e.IdPersonaNavigation.Cedula != null && e.IdPersonaNavigation.Cedula.Contains(s)))
             .OrderBy(e => e.IdPersonaNavigation.NombreCompleto)
@@ -57,16 +57,16 @@ public class ConsultasController : ControllerBase
     public async Task<IActionResult> EstadoCuenta(int idEstudiante, [FromQuery] int? idPeriodo)
     {
         var estudiante = await _db.Estudiantes.AsNoTracking()
-            .Where(e => e.IdEstudiante == idEstudiante)
-            .Select(e => new
-            {
-                e.IdEstudiante,
-                Nombre = e.IdPersonaNavigation.NombreCompleto,
-                e.NumeroCarne,
-                Habilitado = e.Estado
-            })
-            .FirstOrDefaultAsync()
-            ?? throw new NegocioException("El estudiante no existe.");
+       .Where(e => e.IdEstudiante == idEstudiante)
+       .Select(e => new
+       {
+           e.IdEstudiante,
+           Nombre = e.IdPersonaNavigation.NombreCompleto,
+           e.NumeroCarne,
+           Habilitado = e.Estado
+       })
+       .FirstOrDefaultAsync()
+       ?? throw new NegocioException("El estudiante no existe.");
 
         // Matrículas del estudiante (todas, o solo las del período pedido)
         var q = _db.Matriculas.AsNoTracking().Where(m => m.IdEstudiante == idEstudiante);

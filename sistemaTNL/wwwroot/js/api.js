@@ -35,3 +35,10 @@ async function api(ruta, opciones = {}) {
 function mensajeError(resultado, textoPorDefecto = 'No se pudo completar la operación.') {
     return resultado?.datos?.mensaje || textoPorDefecto;
 }
+// Devuelve el elemento de la página con ese id. Si no existe, avisa con un error claro
+// (así el resto del código no tiene que comprobar a cada rato si es null).
+function el(id) {
+    const e = document.getElementById(id);
+    if (!e) throw new Error('Falta el elemento con id "' + id + '" en la página.');
+    return e;
+}

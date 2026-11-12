@@ -34,11 +34,16 @@ public record PersonaResumen(
     bool EsEstudiante,
     bool EsDocente,
      bool Reutilizada,
-    int? IdTutorEstudiante);
+    int? IdTutorEstudiante,
+    bool? EstadoEstudiante,    // null = la persona no tiene ese rol
+    bool? EstadoTutor,
+    bool? EstadoDocente);
 
-public record TutorItem(int IdTutor, int IdPersona, string NombreCompleto, string? Cedula);
+public record TutorItem(int IdTutor, int IdPersona, string NombreCompleto, string? Cedula, bool Habilitado);
 
 public record NuevoBarrioRequest(string Nombre, int IdMunicipio);
+// Datos para agregar un municipio nuevo a un departamento existente
+public record NuevoMunicipioRequest(string Nombre, int IdDepartamento);
 
 public record ActualizarPersonaRequest(
     string NombreCompleto,

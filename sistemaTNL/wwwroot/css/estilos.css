@@ -91,4 +91,10 @@
         width: 100%;
         min-height: auto;
     }
+    /* Menú lateral como columna: la zona del usuario queda siempre abajo */
+    .barra-lateral {
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+    }
 }

@@ -1,0 +1,483 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Personas y roles - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3 mb-0">Personas y roles</h1>
+                <a href="persona-nueva.html" class="btn btn-primario">+ Registrar persona</a>
+            </div>
+
+            <!-- Pestañas por rol -->
+            <ul class="nav nav-tabs" id="pestanas">
+                <li class="nav-item"><button type="button" class="nav-link active" data-tab="estudiantes">Estudiantes</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-tab="tutores">Tutores</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-tab="docentes">Docentes</button></li>
+            </ul>
+
+            <div class="card card-body border-top-0 rounded-top-0">
+                <!-- Buscador -->
+                <form id="formBuscar" class="row g-2 mb-3">
+                    <div class="col-12 col-md">
+                        <input id="texto" type="search" class="form-control" autocomplete="off">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primario">Buscar</button>
+                    </div>
+                </form>
+
+                <!-- Mensajes (sin resultados, errores...) -->
+                <div id="mensaje"></div>
+
+                <!-- Tabla de resultados -->
+                <div id="resultado" class="table-responsive"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Ventana con el detalle de la persona ===== -->
+    <div class="modal fade" id="modalPersona" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="modalTitulo">Persona</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="modalMensaje"></div>
+
+                    <h3 class="h6 text-uppercase text-muted">Roles</h3>
+                    <div id="roles" class="mb-4"></div>
+
+                    <h3 class="h6 text-uppercase text-muted">Datos generales</h3>
+                    <form id="formPersona" class="row g-3" novalidate>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label" for="campoNombre">Nombre completo</label>
+                            <input id="campoNombre" class="form-control" maxlength="150">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="campoFecha">Fecha de nacimiento</label>
+                            <input id="campoFecha" type="date" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="campoCedula">Cédula</label>
+                            <input id="campoCedula" class="form-control" maxlength="20">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="campoCelular">Celular</label>
+                            <input id="campoCelular" class="form-control" maxlength="20">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="selDepartamento">Departamento</label>
+                            <select id="selDepartamento" class="form-select"></select>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="selMunicipio">Municipio</label>
+                            <select id="selMunicipio" class="form-select"></select>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="selBarrio">Barrio</label>
+                            <select id="selBarrio" class="form-select"></select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="campoDireccion">Dirección exacta</label>
+                            <input id="campoDireccion" class="form-control" maxlength="250">
+                        </div>
+                    </form>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" id="btnGuardar" class="btn btn-primario">Guardar cambios</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+            // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+            // Etiqueta verde "Habilitado" o gris "Inhabilitado"
+            function etiquetaEstado(habilitado) {
+              const s = document.createElement('span');
+              s.className = 'badge ' + (habilitado ? 'text-bg-success' : 'text-bg-secondary');
+              s.textContent = habilitado ? 'Habilitado' : 'Inhabilitado';
+              return s;
+            }
+
+            // Botón "Ver / editar" de cada fila de la tabla
+            function botonDetalle(fila) {
+              const b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'btn btn-sm btn-outline-primary';
+              b.textContent = 'Ver / editar';
+              b.addEventListener('click', async () => {
+                b.disabled = true;
+                const id = await TABS[pestana].idPersona(fila);   // cada pestaña sabe cómo obtener el id de la persona
+                b.disabled = false;
+                if (id) abrirDetalle(id);
+              });
+              return b;
+            }
+
+            // Configuración de cada pestaña: qué buscar, a qué endpoint llamar y qué columnas mostrar
+            const TABS = {
+              estudiantes: {
+                placeholder: 'Nombre, cédula o carné del estudiante',
+                requiereTexto: true,   // este endpoint exige un texto de búsqueda
+                url: (t) => `/api/consultas/estudiantes?texto=${encodeURIComponent(t)}`,
+                filas: (d) => d?.resultados ?? [],
+                // La lista de estudiantes trae el id del estudiante; hay que consultar su id de persona
+                idPersona: async (f) => {
+                  const r = await api(`/api/estudiantes/${f.idEstudiante}`);
+                  if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return null; }
+                  return r.datos.idPersona;
+                },
+                columnas: [
+                  { titulo: 'Carné', valor: (f) => f.numeroCarne ?? '—' },
+                  { titulo: 'Nombre', valor: (f) => f.nombre },
+                  { titulo: 'Cédula', valor: (f) => f.cedula ?? '—' },
+                  { titulo: 'Estado', valor: (f) => etiquetaEstado(f.habilitado) },
+                  { titulo: '', valor: (f) => botonDetalle(f) },
+                ],
+              },
+              tutores: {
+                placeholder: 'Nombre o cédula del tutor (vacío = todos)',
+                requiereTexto: false,
+                // incluirInhabilitados=true: así se pueden volver a habilitar
+                url: (t) => `/api/personas/tutores?incluirInhabilitados=true&buscar=${encodeURIComponent(t)}`,
+                filas: (d) => (Array.isArray(d) ? d : []),
+                idPersona: async (f) => f.idPersona,
+                columnas: [
+                  { titulo: 'Nombre', valor: (f) => f.nombreCompleto },
+                  { titulo: 'Cédula', valor: (f) => f.cedula ?? '—' },
+                  { titulo: 'Estado', valor: (f) => etiquetaEstado(f.habilitado) },
+                  { titulo: '', valor: (f) => botonDetalle(f) },
+                ],
+              },
+              docentes: {
+                placeholder: 'Nombre del docente (vacío = todos)',
+                requiereTexto: false,
+                url: (t) => `/api/docentes?buscar=${encodeURIComponent(t)}`,
+                filas: (d) => (Array.isArray(d) ? d : []),
+                idPersona: async (f) => f.idPersona,
+                columnas: [
+                  { titulo: 'Nombre', valor: (f) => f.nombreCompleto },
+                  { titulo: 'Licenciado', valor: (f) => (f.esLicenciado ? 'Sí' : 'No') },
+                  { titulo: 'Años de experiencia', valor: (f) => String(f.aniosExperiencia) },
+                  { titulo: 'Modalidades', valor: (f) => (f.modalidades ?? []).map((m) => m.nombre).join(', ') || '—' },
+                  { titulo: 'Estado', valor: (f) => etiquetaEstado(f.habilitado) },
+                  { titulo: '', valor: (f) => botonDetalle(f) },
+                ],
+              },
+            };
+
+            // Roles que puede tener una persona (clave = nombre en la ruta de la API)
+            const ROLES = [
+              { clave: 'estudiante', texto: 'Estudiante', campo: 'estadoEstudiante' },
+              { clave: 'tutor', texto: 'Tutor', campo: 'estadoTutor' },
+              { clave: 'docente', texto: 'Docente', campo: 'estadoDocente' },
+            ];
+
+            let pestana = 'estudiantes';   // pestaña activa
+            let personaActual = null;      // persona que se está viendo en la ventana
+            let departamentos = null;      // se cargan una sola vez
+            const inputTexto = el('texto');
+            const modal = new bootstrap.Modal(el('modalPersona'));
+
+            // ---------- Mensajes ----------
+            function mostrarMensaje(tipo, texto) {
+              const caja = el('mensaje');
+              caja.replaceChildren();
+              if (!tipo) return;
+              const d = document.createElement('div');
+              d.className = `alert alert-${tipo}`;
+              d.textContent = texto;      // textContent: nunca se interpreta como código
+              caja.appendChild(d);
+            }
+
+            function mensajeModal(tipo, texto) {
+              const caja = el('modalMensaje');
+              caja.replaceChildren();
+              if (!tipo) return;
+              const d = document.createElement('div');
+              d.className = `alert alert-${tipo}`;
+              d.textContent = texto;
+              caja.appendChild(d);
+            }
+
+            // ---------- Tabla y búsqueda ----------
+            function dibujarTabla(columnas, filas) {
+              const tabla = document.createElement('table');
+              tabla.className = 'table table-hover align-middle';
+
+              const cabecera = tabla.createTHead().insertRow();
+              for (const c of columnas) {
+                const th = document.createElement('th');
+                th.textContent = c.titulo;
+                cabecera.appendChild(th);
+              }
+
+              const cuerpo = tabla.createTBody();
+              for (const f of filas) {
+                const tr = cuerpo.insertRow();
+                for (const c of columnas) {
+                  const td = tr.insertCell();
+                  const v = c.valor(f);
+                  if (v instanceof Node) td.appendChild(v);
+                  else td.textContent = v;
+                }
+              }
+              el('resultado').replaceChildren(tabla);
+            }
+
+// Contador para ignorar respuestas viejas: si escribís rápido, solo vale la última búsqueda
+let contadorBusqueda = 0;
+
+async function buscar() {
+    const miBusqueda = ++contadorBusqueda;   // número de esta búsqueda
+    const cfg = TABS[pestana];
+    const texto = inputTexto.value.trim();
+
+    // Pestaña que exige texto (estudiantes): si el cuadro está vacío, se limpia la tabla
+    if (cfg.requiereTexto && !texto) {
+        el('resultado').replaceChildren();
+        mostrarMensaje('info', 'Escriba un nombre, cédula o carné para buscar.');
+        return;
+    }
+
+    mostrarMensaje('secondary', 'Buscando...');
+    const r = await api(cfg.url(texto));
+
+    // Si mientras tanto se lanzó otra búsqueda, esta respuesta ya no sirve
+    if (miBusqueda !== contadorBusqueda) return;
+
+    if (!r.ok) {
+        el('resultado').replaceChildren();
+        mostrarMensaje('danger', mensajeError(r));
+        return;
+    }
+
+    const filas = cfg.filas(r.datos);
+    if (filas.length === 0) {
+        el('resultado').replaceChildren();
+        mostrarMensaje('warning', r.datos?.mensaje ?? 'No se encontraron resultados.');
+        return;
+    }
+    mostrarMensaje(null, '');
+    dibujarTabla(cfg.columnas, filas);
+}
+
+            // ---------- Desplegables de ubicación ----------
+            // Llena un <select> con las opciones y deja seleccionada la indicada
+            function llenarSelect(select, items, campoId, seleccionado) {
+              select.replaceChildren();
+              const vacia = document.createElement('option');
+              vacia.value = '';
+              vacia.textContent = 'Seleccione...';
+              select.appendChild(vacia);
+              for (const it of items) {
+                const o = document.createElement('option');
+                o.value = String(it[campoId]);
+                o.textContent = it.nombre;
+                select.appendChild(o);
+              }
+              select.value = seleccionado ? String(seleccionado) : '';
+            }
+
+            async function asegurarDepartamentos() {
+              if (departamentos) return;
+              const r = await api('/api/ubicaciones/departamentos');
+              departamentos = r.ok ? r.datos : [];
+            }
+
+            async function cargarMunicipios(idDepartamento, seleccionado) {
+              if (!idDepartamento) { llenarSelect(el('selMunicipio'), [], 'idMunicipio', null); return; }
+              const r = await api(`/api/ubicaciones/municipios?idDepartamento=${idDepartamento}`);
+              llenarSelect(el('selMunicipio'), r.ok ? r.datos : [], 'idMunicipio', seleccionado);
+            }
+
+            async function cargarBarrios(idMunicipio, seleccionado) {
+              if (!idMunicipio) { llenarSelect(el('selBarrio'), [], 'idBarrio', null); return; }
+              const r = await api(`/api/ubicaciones/barrios?idMunicipio=${idMunicipio}`);
+              llenarSelect(el('selBarrio'), r.ok ? r.datos : [], 'idBarrio', seleccionado);
+            }
+
+            // Al cambiar el departamento se recargan los municipios; al cambiar el municipio, los barrios
+            el('selDepartamento').addEventListener('change', async (e) => {
+              await cargarMunicipios(Number(e.target.value), null);
+              await cargarBarrios(null, null);
+            });
+            el('selMunicipio').addEventListener('change', (e) => cargarBarrios(Number(e.target.value), null));
+
+            // ---------- Ventana de detalle ----------
+            async function abrirDetalle(idPersona) {
+              mensajeModal(null, '');
+              const r = await api(`/api/personas/${idPersona}`);
+              if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+              await pintarPersona(r.datos);
+              modal.show();
+            }
+
+            // Llena la ventana con los datos de la persona
+            async function pintarPersona(p) {
+              personaActual = p;
+              el('modalTitulo').textContent = p.nombreCompleto;
+              el('campoNombre').value = p.nombreCompleto ?? '';
+              el('campoFecha').value = p.fechaNacimiento ?? '';
+              el('campoCedula').value = p.cedula ?? '';
+              el('campoCelular').value = p.celular ?? '';
+              el('campoDireccion').value = p.direccionExacta ?? '';
+
+              await asegurarDepartamentos();
+              llenarSelect(el('selDepartamento'), departamentos, 'idDepartamento', p.idDepartamento);
+              await cargarMunicipios(p.idDepartamento, p.idMunicipio);
+              await cargarBarrios(p.idMunicipio, p.idBarrio);
+
+              pintarRoles(p);
+            }
+
+            // Una fila por cada rol que tiene la persona, con su estado y el botón para cambiarlo
+            function pintarRoles(p) {
+              const caja = el('roles');
+              caja.replaceChildren();
+              let hay = false;
+
+              for (const rol of ROLES) {
+                const estado = p[rol.campo];
+                if (estado === null || estado === undefined) continue;   // no tiene ese rol
+                hay = true;
+
+                const fila = document.createElement('div');
+                fila.className = 'd-flex align-items-center gap-3 mb-2';
+
+                const nombre = document.createElement('span');
+                nombre.className = 'fw-semibold';
+                nombre.style.minWidth = '6rem';
+                nombre.textContent = rol.texto;
+
+                const boton = document.createElement('button');
+                boton.type = 'button';
+                boton.className = 'btn btn-sm ' + (estado ? 'btn-outline-danger' : 'btn-outline-success');
+                boton.textContent = estado ? 'Inhabilitar' : 'Habilitar';
+                boton.addEventListener('click', () => cambiarRol(rol, !estado, boton));
+
+                fila.append(nombre, etiquetaEstado(estado), boton);
+                caja.appendChild(fila);
+              }
+
+              if (!hay) caja.textContent = 'Esta persona no tiene roles.';
+            }
+
+            // Habilita o inhabilita un rol. La base de datos puede rechazarlo (por ejemplo, un tutor con
+            // estudiantes vinculados) y en ese caso se muestra el motivo.
+            async function cambiarRol(rol, habilitar, boton) {
+              if (!habilitar && !confirm(`¿Inhabilitar el rol de ${rol.texto.toLowerCase()}?`)) return;
+
+              mensajeModal(null, '');
+              boton.disabled = true;
+              const r = await api(`/api/personas/${personaActual.idPersona}/roles/${rol.clave}/estado`, {
+                method: 'PUT',
+                body: { habilitado: habilitar },
+              });
+              if (!r.ok) {
+                mensajeModal('danger', mensajeError(r));
+                boton.disabled = false;
+                return;
+              }
+
+              // Se vuelve a leer la persona para refrescar los estados
+              const p = await api(`/api/personas/${personaActual.idPersona}`);
+              if (p.ok) {
+                personaActual = p.datos;
+                pintarRoles(p.datos);
+              }
+              mensajeModal('success', `Rol de ${rol.texto.toLowerCase()} ${habilitar ? 'habilitado' : 'inhabilitado'} correctamente.`);
+              buscar();   // se actualiza también la tabla de fondo
+            }
+
+            // Guardar los datos generales
+            el('btnGuardar').addEventListener('click', async () => {
+              mensajeModal(null, '');
+
+              const cuerpo = {
+                nombreCompleto: el('campoNombre').value.trim(),
+                fechaNacimiento: el('campoFecha').value,
+                cedula: el('campoCedula').value.trim() || null,
+                celular: el('campoCelular').value.trim() || null,
+                idBarrio: Number(el('selBarrio').value),
+                direccionExacta: el('campoDireccion').value.trim(),
+              };
+
+              // Validaciones simples antes de llamar a la API (las reglas de negocio las valida el servidor)
+              if (!cuerpo.nombreCompleto) { mensajeModal('warning', 'El nombre es obligatorio.'); return; }
+              if (!cuerpo.fechaNacimiento) { mensajeModal('warning', 'La fecha de nacimiento es obligatoria.'); return; }
+              if (!cuerpo.idBarrio) { mensajeModal('warning', 'Seleccione el departamento, el municipio y el barrio.'); return; }
+              if (!cuerpo.direccionExacta) { mensajeModal('warning', 'La dirección exacta es obligatoria.'); return; }
+
+              const boton = el('btnGuardar');
+              boton.disabled = true;
+              const r = await api(`/api/personas/${personaActual.idPersona}`, { method: 'PUT', body: cuerpo });
+              boton.disabled = false;
+
+              if (!r.ok) { mensajeModal('danger', mensajeError(r)); return; }
+
+              personaActual = r.datos;
+              el('modalTitulo').textContent = r.datos.nombreCompleto;
+              mensajeModal('success', 'Los datos se guardaron correctamente.');
+              buscar();
+            });
+
+            // ---------- Pestañas y buscador ----------
+            el('pestanas').addEventListener('click', (e) => {
+              const boton = e.target.closest('button[data-tab]');
+              if (!boton) return;
+              pestana = boton.getAttribute('data-tab') ?? 'estudiantes';
+              document.querySelectorAll('#pestanas .nav-link').forEach((b) => b.classList.remove('active'));
+              boton.classList.add('active');
+              inputTexto.value = '';
+              inputTexto.placeholder = TABS[pestana].placeholder;
+              if (TABS[pestana].requiereTexto) {
+                el('resultado').replaceChildren();
+                mostrarMensaje('info', 'Escriba un nombre, cédula o carné para buscar.');
+              } else {
+                buscar();
+              }
+            });
+
+// Búsqueda mientras se escribe: espera 300 ms sin teclear para no consultar en cada letra
+let temporizador = null;
+inputTexto.addEventListener('input', () => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(buscar, 300);
+});
+
+// Botón Buscar / Enter: busca de inmediato
+el('formBuscar').addEventListener('submit', (e) => {
+    e.preventDefault();
+    clearTimeout(temporizador);
+    buscar();
+});
+
+            // Inicio
+            inputTexto.placeholder = TABS[pestana].placeholder;
+            mostrarMensaje('info', 'Escriba un nombre, cédula o carné para buscar.');
+            montarLayout('personas.html');
+    </script>
+</body>
+</html>

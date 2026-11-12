@@ -137,9 +137,15 @@ public class PersonaService : IPersonaService
         return Mapear(resumen, reutilizada);
     }
 
-    public async Task<List<TutorItem>> ListarTutoresAsync(string? texto)
+    public async Task<List<TutorItem>> ListarTutoresAsync(string? texto, bool incluirInhabilitados = false)
     {
-        var q = _db.Tutors.AsNoTracking().Where(t => t.Estado);
+        var q = _db.Tutors.AsNoTracking().AsQueryable();
+
+        // Por defecto solo los habilitados (es lo que necesita el formulario de matrícula).
+        // La pantalla de Personas pide también los inhabilitados para poder habilitarlos de nuevo.
+        if (!incluirInhabilitados)
+            q = q.Where(t => t.Estado);
+
         if (!string.IsNullOrWhiteSpace(texto))
         {
             var s = texto.Trim();
@@ -148,10 +154,9 @@ public class PersonaService : IPersonaService
         }
         return await q.OrderBy(t => t.IdPersonaNavigation.NombreCompleto)
             .Select(t => new TutorItem(t.IdTutor, t.IdPersona,
-                t.IdPersonaNavigation.NombreCompleto, t.IdPersonaNavigation.Cedula))
+                t.IdPersonaNavigation.NombreCompleto, t.IdPersonaNavigation.Cedula, t.Estado))
             .ToListAsync();
     }
-
     private IQueryable<Persona> Consulta() => _db.Personas.AsNoTracking()
         .Include(p => p.IdBarrioNavigation).ThenInclude(b => b.IdMunicipioNavigation)
         .Include(p => p.Tutor).Include(p => p.Estudiante).Include(p => p.Docente);
@@ -272,7 +277,8 @@ public class PersonaService : IPersonaService
      p.IdBarrio, p.IdBarrioNavigation.IdMunicipio,
      p.IdBarrioNavigation.IdMunicipioNavigation.IdDepartamento,
      p.Tutor?.IdTutor, p.Tutor is not null, p.Estudiante is not null, p.Docente is not null,
-     reutilizada, p.Estudiante?.IdTutor);
+          reutilizada, p.Estudiante?.IdTutor,
+     p.Estudiante?.Estado, p.Tutor?.Estado, p.Docente?.Estado);
 
     private static string? NormalizarCedula(string? c) =>
         string.IsNullOrWhiteSpace(c) ? null : c.Trim().ToUpperInvariant();

@@ -60,4 +60,33 @@ public class UbicacionesController : ControllerBase
         return Created($"/api/ubicaciones/barrios?idMunicipio={barrio.IdMunicipio}",
             new { barrio.IdBarrio, barrio.Nombre });
     }
+    // Agregar un municipio que no exista, asociado a un departamento existente
+    [HttpPost("municipios")]
+    public async Task<IActionResult> CrearMunicipio(NuevoMunicipioRequest req)
+    {
+        // El nombre es obligatorio
+        var nombre = req.Nombre?.Trim();
+        if (string.IsNullOrEmpty(nombre))
+            throw new NegocioException("El nombre del municipio es obligatorio.");
+
+        // El departamento debe existir
+        if (!await _db.Departamentos.AnyAsync(d => d.IdDepartamento == req.IdDepartamento))
+            throw new NegocioException("El departamento seleccionado no existe.");
+
+        // No se permite repetir el nombre dentro del mismo departamento
+        if (await _db.Municipios.AnyAsync(m => m.IdDepartamento == req.IdDepartamento && m.Nombre == nombre))
+            throw new NegocioException("Ya existe un municipio con ese nombre en el departamento.");
+
+        var municipio = new Municipio { Nombre = nombre, IdDepartamento = req.IdDepartamento };
+        _db.Municipios.Add(municipio);
+        await _db.SaveChangesAsync();
+
+        // Se deja constancia en la auditoría
+        var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        await _auditoria.RegistrarAsync(idUsuario, "CREAR_MUNICIPIO", "municipio", municipio.IdMunicipio,
+            HttpContext.Connection.RemoteIpAddress?.ToString(), nombre);
+
+        return Created($"/api/ubicaciones/municipios?idDepartamento={municipio.IdDepartamento}",
+            new { municipio.IdMunicipio, municipio.Nombre });
+    }
 }
