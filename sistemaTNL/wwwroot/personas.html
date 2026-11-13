@@ -58,6 +58,20 @@
                 <div class="modal-body">
                     <div id="modalMensaje"></div>
 
+                    <!-- Fotografía de la persona -->
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div class="rounded border bg-light d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                             style="width:96px;height:96px;">
+                            <img id="fotoPersona" alt="Fotografía" class="d-none" style="width:100%;height:100%;object-fit:cover;">
+                            <span id="sinFoto" class="text-muted small text-center px-1">Sin foto</span>
+                        </div>
+                        <div>
+                            <input id="archivoFoto" type="file" accept="image/jpeg,image/png" class="d-none">
+                            <button type="button" id="btnFoto" class="btn btn-sm btn-outline-primary">Cambiar fotografía</button>
+                            <div class="form-text">JPG o PNG, máximo 2 MB.</div>
+                        </div>
+                    </div>
+
                     <h3 class="h6 text-uppercase text-muted">Roles</h3>
                     <div id="roles" class="mb-4"></div>
 
@@ -138,8 +152,8 @@
             // Configuración de cada pestaña: qué buscar, a qué endpoint llamar y qué columnas mostrar
             const TABS = {
               estudiantes: {
-                placeholder: 'Nombre, cédula o carné del estudiante',
-                requiereTexto: true,   // este endpoint exige un texto de búsqueda
+                  placeholder: 'Nombre, cédula o carné del estudiante (vacío = todos)',
+                  requiereTexto: false,
                 url: (t) => `/api/consultas/estudiantes?texto=${encodeURIComponent(t)}`,
                 filas: (d) => d?.resultados ?? [],
                 // La lista de estudiantes trae el id del estudiante; hay que consultar su id de persona
@@ -256,8 +270,9 @@ async function buscar() {
 
     // Pestaña que exige texto (estudiantes): si el cuadro está vacío, se limpia la tabla
     if (cfg.requiereTexto && !texto) {
-        el('resultado').replaceChildren();
-        mostrarMensaje('info', 'Escriba un nombre, cédula o carné para buscar.');
+        inputTexto.placeholder = TABS[pestana].placeholder;
+        buscar();   // la pantalla abre mostrando a todos los estudiantes
+        montarLayout('personas.html');
         return;
     }
 
@@ -349,7 +364,8 @@ async function buscar() {
               await cargarMunicipios(p.idDepartamento, p.idMunicipio);
               await cargarBarrios(p.idMunicipio, p.idBarrio);
 
-              pintarRoles(p);
+                pintarRoles(p);
+                cargarFoto(p.idPersona);   // muestra la fotografía (o "Sin foto")
             }
 
             // Una fila por cada rol que tiene la persona, con su estado y el botón para cambiarlo
@@ -442,6 +458,51 @@ async function buscar() {
               mensajeModal('success', 'Los datos se guardaron correctamente.');
               buscar();
             });
+
+// ---------- Fotografía ----------
+let urlFoto = null;   // dirección temporal de la imagen mostrada (se libera al cambiarla)
+
+// Pide la imagen al servidor y la muestra. Si la persona no tiene foto, queda "Sin foto".
+async function cargarFoto(idPersona) {
+    const img = el('fotoPersona');
+    const vacio = el('sinFoto');
+    img.classList.add('d-none');
+    vacio.classList.remove('d-none');
+    if (urlFoto) { URL.revokeObjectURL(urlFoto); urlFoto = null; }
+    try {
+        const resp = await fetch(`/api/personas/${idPersona}/fotografia`, { credentials: 'same-origin' });
+        if (!resp.ok) return;                      // sin foto u otro problema: se deja "Sin foto"
+        urlFoto = URL.createObjectURL(await resp.blob());
+        img.src = urlFoto;
+        img.classList.remove('d-none');
+        vacio.classList.add('d-none');
+    } catch { /* sin conexión: se deja "Sin foto" */ }
+}
+
+// El botón abre el selector de archivos
+el('btnFoto').addEventListener('click', () => el('archivoFoto').click());
+
+// Al elegir un archivo se valida y se sube
+el('archivoFoto').addEventListener('change', async () => {
+    const archivo = el('archivoFoto').files[0];
+    el('archivoFoto').value = '';                // permite volver a elegir el mismo archivo
+    if (!archivo) return;
+    mensajeModal(null, '');
+
+    // Validaciones simples (el servidor comprueba además el contenido real)
+    if (!['image/jpeg', 'image/png'].includes(archivo.type)) { mensajeModal('warning', 'La fotografía debe ser JPG o PNG.'); return; }
+    if (archivo.size > 2 * 1024 * 1024) { mensajeModal('warning', 'La imagen no puede superar los 2 MB.'); return; }
+
+    const datos = new FormData();
+    datos.append('archivo', archivo);            // el servidor espera el campo "archivo"
+    el('btnFoto').disabled = true;
+    const r = await api(`/api/personas/${personaActual.idPersona}/fotografia`, { method: 'PUT', body: datos });
+    el('btnFoto').disabled = false;
+
+    if (!r.ok) { mensajeModal('danger', mensajeError(r)); return; }
+    await cargarFoto(personaActual.idPersona);
+    mensajeModal('success', 'La fotografía se guardó correctamente.');
+});
 
             // ---------- Pestañas y buscador ----------
             el('pestanas').addEventListener('click', (e) => {

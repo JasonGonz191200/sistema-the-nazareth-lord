@@ -6,20 +6,128 @@
 }
 
 /* ---------- Login ---------- */
-.fondo-login {
+/* ---------- Login y recuperación de contraseña ---------- */
+/* Pantalla dividida: panel de marca a la izquierda y formulario a la derecha */
+.login-pagina {
     min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.login-marca {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 3rem;
+    color: #fff;
+    background: linear-gradient(160deg, var(--color-primario), var(--color-primario-oscuro));
+}
+
+    /* Círculos decorativos suaves en la esquina del panel */
+    .login-marca::before,
+    .login-marca::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid rgba(200, 162, 74, .35);
+    }
+
+    .login-marca::before {
+        width: 420px;
+        height: 420px;
+        right: -160px;
+        bottom: -160px;
+    }
+
+    .login-marca::after {
+        width: 260px;
+        height: 260px;
+        right: -80px;
+        bottom: -80px;
+    }
+
+    .login-marca .insignia {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        border: 2px solid var(--color-acento);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        color: var(--color-acento);
+    }
+
+    .login-marca h1 {
+        font-size: 2.1rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .login-marca .subtitulo {
+        color: var(--color-acento);
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        font-size: .8rem;
+        margin: .25rem 0 0;
+    }
+
+    .login-marca .linea {
+        width: 64px;
+        height: 3px;
+        background: var(--color-acento);
+        margin: 1.25rem 0;
+    }
+
+    .login-marca p {
+        color: rgba(255, 255, 255, .78);
+        max-width: 24rem;
+        margin: 0;
+    }
+
+.login-formulario {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--color-primario), var(--color-primario-oscuro));
-    padding: 1rem;
+    padding: 2rem 1.25rem;
+    background: #fff;
 }
 
-.tarjeta-login {
+.login-caja {
     width: 100%;
-    max-width: 420px;
-    border: 0;
-    border-radius: 1rem;
+    max-width: 380px;
+}
+
+/* En el celular el panel de marca queda arriba y más compacto */
+@media (max-width: 768px) {
+    .login-pagina {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+    }
+
+    .login-marca {
+        padding: 2rem 1.5rem;
+    }
+
+        .login-marca .insignia {
+            width: 56px;
+            height: 56px;
+            margin-bottom: 1rem;
+        }
+
+        .login-marca h1 {
+            font-size: 1.6rem;
+        }
+
+        .login-marca p {
+            display: none;
+        }
+
+        .login-marca .linea {
+            margin: .75rem 0 0;
+        }
 }
 
 .btn-primario {

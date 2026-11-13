@@ -70,7 +70,8 @@ public class GruposController : ControllerBase
     {
         var q = _db.Grupos.AsNoTracking().AsQueryable();
         if (idPeriodo is not null) q = q.Where(g => g.IdPeriodo == idPeriodo);
-        return Ok(await Proyectar(q).OrderBy(g => g.Identificacion).ToListAsync());
+        // Se ordena ANTES de proyectar: EF no puede traducir el orden sobre el resultado ya armado
+        return Ok(await Proyectar(q.OrderBy(g => g.Identificacion)).ToListAsync());
     }
 
     // POST api/grupos  (RF019)

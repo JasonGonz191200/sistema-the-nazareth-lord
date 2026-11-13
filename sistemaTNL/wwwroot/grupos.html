@@ -1,0 +1,351 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Grupos - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h1 class="h3 mb-0">Grupos</h1>
+                <button type="button" id="btnNuevo" class="btn btn-primario">+ Nuevo grupo</button>
+            </div>
+
+            <div class="card card-body">
+                <!-- Filtros: período (consulta al servidor) y texto (local, mientras se escribe) -->
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-5">
+                        <select id="filtroPeriodo" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-md">
+                        <input id="filtro" type="search" class="form-control" autocomplete="off"
+                               placeholder="Filtrar por grupo, curso, docente o aula">
+                    </div>
+                </div>
+
+                <!-- Mensajes (sin resultados, errores...) -->
+                <div id="mensaje"></div>
+
+                <!-- Tabla de grupos -->
+                <div id="resultado" class="table-responsive"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Ventana para crear o editar un grupo ===== -->
+    <div class="modal fade" id="modalGrupo" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="modalTitulo">Nuevo grupo</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalMensaje"></div>
+                    <form id="formGrupo" class="row g-3" novalidate>
+                        <div class="col-12">
+                            <label class="form-label" for="selPeriodo">Período</label>
+                            <select id="selPeriodo" class="form-select"></select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="campoIdent">Identificación del grupo</label>
+                            <input id="campoIdent" class="form-control" maxlength="50" placeholder="Ej.: Grupo A">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="selNivel">Nivel</label>
+                            <select id="selNivel" class="form-select"></select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="selDocente">Docente</label>
+                            <select id="selDocente" class="form-select"></select>
+                            <div class="form-text">Solo docentes habilitados con disponibilidad en la modalidad del período.</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="selAula">Aula</label>
+                            <select id="selAula" class="form-select"></select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="campoHorario">Horario (opcional)</label>
+                            <input id="campoHorario" class="form-control" maxlength="100"
+                                   placeholder="Si lo deja vacío se usa el horario de la modalidad">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btnGuardar" class="btn btn-primario">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+    // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+    let grupos = [];               // grupos traídos del servidor (según el filtro de período)
+    let periodos = [];             // todos los períodos (para los desplegables)
+    let idEditando = null;         // null = se está creando; número = se está editando ese grupo
+    const modal = new bootstrap.Modal(el('modalGrupo'));
+
+    // ---------- Utilidades ----------
+    // Quita acentos y pasa a minúsculas, para filtrar sin distinguir acentos
+    function normalizar(t) {
+      return (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    }
+
+    // "2026-12-01" -> "01/12/2026" (sin pasar por Date para evitar corrimientos de zona horaria)
+    function fechaCorta(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.substring(0, 10).split('-');
+      return `${d}/${m}/${a}`;
+    }
+
+    function mostrarMensaje(tipo, texto) {
+      const caja = el('mensaje');
+      caja.replaceChildren();
+      if (!tipo) return;
+      const d = document.createElement('div');
+      d.className = `alert alert-${tipo}`;
+      d.textContent = texto;      // textContent: nunca se interpreta como código
+      caja.appendChild(d);
+    }
+
+    function mensajeModal(tipo, texto) {
+      const caja = el('modalMensaje');
+      caja.replaceChildren();
+      if (!tipo) return;
+      const d = document.createElement('div');
+      d.className = `alert alert-${tipo}`;
+      d.textContent = texto;
+      caja.appendChild(d);
+    }
+
+    // Etiqueta verde "Habilitado" o gris "Inhabilitado"
+    function etiquetaEstado(habilitado) {
+      const s = document.createElement('span');
+      s.className = 'badge ' + (habilitado ? 'text-bg-success' : 'text-bg-secondary');
+      s.textContent = habilitado ? 'Habilitado' : 'Inhabilitado';
+      return s;
+    }
+
+    // Llena un <select> con opciones { valor, texto }
+    function llenarSelect(select, opciones, textoVacio) {
+      select.replaceChildren();
+      const vacia = document.createElement('option');
+      vacia.value = '';
+      vacia.textContent = textoVacio;
+      select.appendChild(vacia);
+      for (const o of opciones) {
+        const op = document.createElement('option');
+        op.value = String(o.valor);
+        op.textContent = o.texto;
+        select.appendChild(op);
+      }
+    }
+
+    // Texto con que se muestra un período en los desplegables
+    function textoPeriodo(p) {
+      return `${p.curso} - ${p.modalidad} (inicia ${fechaCorta(p.fechaInicioCurso)})${p.estado === 'Finalizado' ? ' [Finalizado]' : ''}`;
+    }
+
+    // ---------- Datos de apoyo ----------
+    async function cargarApoyo() {
+      // Períodos: para el filtro de la pantalla
+      const rp = await api('/api/periodos');
+      periodos = rp.ok ? rp.datos : [];
+      llenarSelect(el('filtroPeriodo'), periodos.map((p) => ({ valor: p.idPeriodo, texto: textoPeriodo(p) })), 'Todos los períodos');
+
+      // Niveles habilitados
+      const rn = await api('/api/cursos/niveles');
+      llenarSelect(el('selNivel'), (rn.ok ? rn.datos : []).map((n) => ({ valor: n.idNivel, texto: n.nombre })), 'Seleccione...');
+
+      // Aulas habilitadas
+      const ra = await api('/api/aulas');
+      llenarSelect(el('selAula'), (ra.ok ? ra.datos : []).filter((a) => a.estado).map((a) => ({ valor: a.idAula, texto: a.nombre })), 'Seleccione...');
+    }
+
+    // Docentes disponibles para el período elegido (dependen de la modalidad del período)
+    async function cargarDocentes(idPeriodo, seleccionado = null) {
+      if (!idPeriodo) { llenarSelect(el('selDocente'), [], 'Seleccione primero el período'); return; }
+      const r = await api(`/api/grupos/docentes?idPeriodo=${idPeriodo}`);
+      if (!r.ok) { mensajeModal('danger', mensajeError(r)); llenarSelect(el('selDocente'), [], 'Error al cargar'); return; }
+      llenarSelect(el('selDocente'), r.datos.map((d) => ({ valor: d.idDocente, texto: d.nombre })),
+        r.datos.length === 0 ? 'No hay docentes disponibles para esta modalidad' : 'Seleccione...');
+      if (seleccionado) el('selDocente').value = String(seleccionado);
+    }
+
+    // Al cambiar el período en el formulario se recargan los docentes
+    el('selPeriodo').addEventListener('change', () => cargarDocentes(el('selPeriodo').value));
+
+    // ---------- Lista ----------
+    async function cargarGrupos() {
+      mostrarMensaje('secondary', 'Cargando...');
+      const idPeriodo = el('filtroPeriodo').value;
+      const r = await api('/api/grupos' + (idPeriodo ? `?idPeriodo=${idPeriodo}` : ''));
+      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+      grupos = r.datos;
+      mostrarMensaje(null, '');
+      dibujar();
+    }
+
+    // Dibuja la tabla aplicando el filtro de texto
+    function dibujar() {
+      const f = normalizar(el('filtro').value.trim());
+      const filas = grupos.filter((g) =>
+        normalizar([g.identificacion, g.curso, g.modalidad, g.docente, g.aula, g.nivel].join(' ')).includes(f));
+
+      if (filas.length === 0) {
+        el('resultado').replaceChildren();
+        mostrarMensaje('warning', grupos.length === 0 ? 'No hay grupos para mostrar.' : 'Ningún grupo coincide con el filtro.');
+        return;
+      }
+      mostrarMensaje(null, '');
+
+      const tabla = document.createElement('table');
+      tabla.className = 'table table-hover align-middle';
+      const cab = tabla.createTHead().insertRow();
+      for (const t of ['Grupo', 'Curso', 'Docente', 'Aula', 'Nivel', 'Horario', 'Inscritos', 'Estado', '']) {
+        const th = document.createElement('th');
+        th.textContent = t;
+        cab.appendChild(th);
+      }
+
+      const cuerpo = tabla.createTBody();
+      for (const g of filas) {
+        const tr = cuerpo.insertRow();
+        tr.insertCell().textContent = g.identificacion;
+        tr.insertCell().textContent = `${g.curso} (${g.modalidad})`;
+        tr.insertCell().textContent = g.docente;
+        tr.insertCell().textContent = g.aula;
+        tr.insertCell().textContent = g.nivel;
+        tr.insertCell().textContent = g.horario ?? '—';
+        tr.insertCell().textContent = String(g.inscritos);
+        tr.insertCell().appendChild(etiquetaEstado(g.estado));
+
+        // Botones de la fila
+        const acciones = tr.insertCell();
+        acciones.className = 'text-end text-nowrap';
+
+        const bEditar = document.createElement('button');
+        bEditar.type = 'button';
+        bEditar.className = 'btn btn-sm btn-outline-primary me-2';
+        bEditar.textContent = 'Editar';
+        bEditar.addEventListener('click', () => abrirEdicion(g));
+
+        const bEstado = document.createElement('button');
+        bEstado.type = 'button';
+        bEstado.className = 'btn btn-sm ' + (g.estado ? 'btn-outline-danger' : 'btn-outline-success');
+        bEstado.textContent = g.estado ? 'Inhabilitar' : 'Habilitar';
+        bEstado.addEventListener('click', () => cambiarEstado(g, bEstado));
+
+        acciones.append(bEditar, bEstado);
+      }
+      el('resultado').replaceChildren(tabla);
+    }
+
+    // Filtro de texto mientras se escribe (la lista ya está en memoria); el de período consulta al servidor
+    el('filtro').addEventListener('input', dibujar);
+    el('filtroPeriodo').addEventListener('change', cargarGrupos);
+
+    // ---------- Habilitar / inhabilitar ----------
+    async function cambiarEstado(g, boton) {
+      if (g.estado && !confirm(`¿Inhabilitar el grupo "${g.identificacion}"?`)) return;
+
+      boton.disabled = true;
+      const r = await api(`/api/grupos/${g.idGrupo}/estado`, { method: 'PUT', body: { habilitado: !g.estado } });
+      boton.disabled = false;
+
+      // RN020: la base rechaza inhabilitar un grupo con estudiantes matriculados y se muestra el motivo
+      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+      await cargarGrupos();
+      mostrarMensaje('success', `Grupo "${g.identificacion}" ${g.estado ? 'inhabilitado' : 'habilitado'}.`);
+    }
+
+    // ---------- Crear / editar ----------
+    // Llena el desplegable de período: los habilitados, más el período actual del grupo si se está editando
+    function llenarPeriodosForm(idActual) {
+      const lista = periodos.filter((p) => p.estado === 'Habilitado' || p.idPeriodo === idActual);
+      llenarSelect(el('selPeriodo'), lista.map((p) => ({ valor: p.idPeriodo, texto: textoPeriodo(p) })), 'Seleccione...');
+    }
+
+    el('btnNuevo').addEventListener('click', async () => {
+      idEditando = null;
+      el('modalTitulo').textContent = 'Nuevo grupo';
+      mensajeModal(null, '');
+      llenarPeriodosForm(null);
+      // Si se está filtrando por un período, se propone ese
+      el('selPeriodo').value = el('filtroPeriodo').value;
+      await cargarDocentes(el('selPeriodo').value);
+      el('campoIdent').value = '';
+      el('selNivel').value = '';
+      el('selAula').value = '';
+      el('campoHorario').value = '';
+      modal.show();
+    });
+
+    async function abrirEdicion(g) {
+      idEditando = g.idGrupo;
+      el('modalTitulo').textContent = 'Editar grupo';
+      mensajeModal(null, '');
+      llenarPeriodosForm(g.idPeriodo);
+      el('selPeriodo').value = String(g.idPeriodo);
+      await cargarDocentes(g.idPeriodo, g.idDocente);
+      el('campoIdent').value = g.identificacion;
+      el('selNivel').value = String(g.idNivel);
+      el('selAula').value = String(g.idAula);
+      el('campoHorario').value = g.horario ?? '';
+      modal.show();
+    }
+
+    el('btnGuardar').addEventListener('click', async () => {
+      mensajeModal(null, '');
+
+      const cuerpo = {
+        idPeriodo: Number(el('selPeriodo').value),
+        idDocente: Number(el('selDocente').value),
+        idAula: Number(el('selAula').value),
+        idNivel: Number(el('selNivel').value),
+        identificacion: el('campoIdent').value.trim(),
+        horario: el('campoHorario').value.trim() || null,
+      };
+
+      // Validaciones simples (las reglas de negocio las valida el servidor)
+      if (!cuerpo.idPeriodo) { mensajeModal('warning', 'Seleccione el período.'); return; }
+      if (!cuerpo.identificacion) { mensajeModal('warning', 'La identificación del grupo es obligatoria.'); return; }
+      if (!cuerpo.idNivel) { mensajeModal('warning', 'Seleccione el nivel.'); return; }
+      if (!cuerpo.idDocente) { mensajeModal('warning', 'Seleccione el docente.'); return; }
+      if (!cuerpo.idAula) { mensajeModal('warning', 'Seleccione el aula.'); return; }
+
+      const boton = el('btnGuardar');
+      boton.disabled = true;
+      // Si hay un grupo en edición se actualiza (PUT); si no, se crea (POST)
+      const r = idEditando
+        ? await api(`/api/grupos/${idEditando}`, { method: 'PUT', body: cuerpo })
+        : await api('/api/grupos', { method: 'POST', body: cuerpo });
+      boton.disabled = false;
+
+      if (!r.ok) { mensajeModal('danger', mensajeError(r)); return; }
+
+      modal.hide();
+      await cargarGrupos();
+      mostrarMensaje('success', idEditando ? 'Grupo actualizado.' : `Grupo "${cuerpo.identificacion}" creado.`);
+    });
+
+    // ---------- Inicio ----------
+    montarLayout('grupos.html');
+    // Primero los datos de apoyo (el filtro de período) y luego la lista
+    cargarApoyo().then(cargarGrupos);
+    </script>
+</body>
+</html>

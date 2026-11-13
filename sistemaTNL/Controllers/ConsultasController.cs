@@ -20,18 +20,25 @@ public class ConsultasController : ControllerBase
 
     // GET api/consultas/estudiantes?texto=jos
     // Busca estudiantes por nombre, cédula o número de carné (habilitados o no)
+    // GET api/consultas/estudiantes?texto=jos
+    // Busca estudiantes por nombre, cédula o número de carné (habilitados o no).
+    // Si no se envía texto, devuelve a TODOS los estudiantes.
     [HttpGet("estudiantes")]
     public async Task<IActionResult> BuscarEstudiantes([FromQuery] string? texto)
     {
-        if (string.IsNullOrWhiteSpace(texto))
-            throw new NegocioException("Indique un nombre, cédula o número de carné para buscar.");
+        var s = texto?.Trim();
+        var q = _db.Estudiantes.AsNoTracking().AsQueryable();
 
-        var s = texto.Trim();
-        var resultados = await _db.Estudiantes.AsNoTracking()
-            .Where(e =>
+        // Solo se filtra si hay texto; sin texto se listan todos
+        if (!string.IsNullOrEmpty(s))
+        {
+            q = q.Where(e =>
                 EF.Functions.Collate(e.IdPersonaNavigation.NombreCompleto, "Latin1_General_CI_AI").Contains(s) ||
                 (e.NumeroCarne != null && e.NumeroCarne.Contains(s)) ||
-                (e.IdPersonaNavigation.Cedula != null && e.IdPersonaNavigation.Cedula.Contains(s)))
+                (e.IdPersonaNavigation.Cedula != null && e.IdPersonaNavigation.Cedula.Contains(s)));
+        }
+
+        var consulta = q
             .OrderBy(e => e.IdPersonaNavigation.NombreCompleto)
             .Select(e => new
             {
@@ -40,14 +47,19 @@ public class ConsultasController : ControllerBase
                 e.NumeroCarne,
                 Cedula = e.IdPersonaNavigation.Cedula,
                 Habilitado = e.Estado
-            })
-            .Take(50)
-            .ToListAsync();
+            });
+
+        // Con texto se limita a 50 coincidencias; el listado completo no lleva límite
+        var resultados = string.IsNullOrEmpty(s)
+            ? await consulta.ToListAsync()
+            : await consulta.Take(50).ToListAsync();
 
         return Ok(new
         {
             resultados,
-            mensaje = resultados.Count == 0 ? "No se encontraron resultados." : null
+            mensaje = resultados.Count == 0
+                ? (string.IsNullOrEmpty(s) ? "Todavía no hay estudiantes registrados." : "No se encontraron resultados.")
+                : null
         });
     }
 

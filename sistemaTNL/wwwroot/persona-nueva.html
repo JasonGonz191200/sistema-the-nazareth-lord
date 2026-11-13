@@ -32,7 +32,9 @@
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-md-4">
                         <label class="form-label" for="campoCedula">Cédula</label>
-                        <input id="campoCedula" class="form-control" maxlength="20" autocomplete="off">
+                        <input id="campoCedula" class="form-control" maxlength="20" autocomplete="off" placeholder="000-000000-0000X">
+                        <!-- Aviso en rojo cuando la cédula no es válida -->
+                        <div id="errorCedula" class="invalid-feedback"></div>
                         <div class="form-text">Obligatoria para mayores de edad. Si ya está registrada, se reutiliza la persona.</div>
                     </div>
 
@@ -76,6 +78,20 @@
                     <div class="col-12 col-md-8">
                         <label class="form-label" for="campoDireccion">Dirección exacta</label>
                         <input id="campoDireccion" class="form-control" maxlength="250">
+                    </div>
+                </div>
+
+                <!-- ===== Fotografía (opcional) ===== -->
+                <h2 class="h6 text-uppercase text-muted">Fotografía (opcional)</h2>
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <div class="rounded border bg-light d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                         style="width:96px;height:96px;">
+                        <img id="vistaFoto" alt="Vista previa" class="d-none" style="width:100%;height:100%;object-fit:cover;">
+                        <span id="sinFoto" class="text-muted small text-center px-1">Sin foto</span>
+                    </div>
+                    <div>
+                        <input id="archivoFoto" type="file" accept="image/jpeg,image/png" class="form-control form-control-sm">
+                        <div class="form-text">JPG o PNG, máximo 2 MB.</div>
                     </div>
                 </div>
 
@@ -230,6 +246,7 @@
       for (const id of CAMPOS_GENERALES) el(id).disabled = bloquear;
         el('btnNuevoBarrio').classList.toggle('d-none', bloquear);
         el('btnNuevoMunicipio').classList.toggle('d-none', bloquear);
+        el('archivoFoto').disabled = bloquear;   // una persona ya registrada conserva su foto
     }
 
     // Si se edita la cédula después de haber detectado una persona, se vuelve al estado inicial
@@ -250,9 +267,12 @@
 
     // Al salir del campo cédula se busca si la persona ya existe
     el('campoCedula').addEventListener('blur', async () => {
-      const cedula = el('campoCedula').value.trim();
-      if (!cedula || personaExistente) return;
-
+        // La letra final se pasa a mayúscula
+        const cedula = el('campoCedula').value.trim().toUpperCase();
+        el('campoCedula').value = cedula;
+        // Si el formato es inválido se muestra el aviso y no se busca nada
+        if (!validarCedula(true)) return;
+        if (!cedula || personaExistente) return;
       const r = await api(`/api/personas/buscar?cedula=${encodeURIComponent(cedula)}`);
       if (!r.ok) return;   // 404 = no existe: es una persona nueva
 
@@ -288,6 +308,86 @@
       }
       actualizarAyudaTutor();
     });
+// ---------- Cédula: formato y fecha de nacimiento ----------
+// Formato nicaragüense: 000-000000-0000X
+//   3 dígitos (municipio) - 6 dígitos (día, mes y año de nacimiento) - 4 dígitos + 1 letra
+const FORMATO_CEDULA = /^(\d{3})-(\d{2})(\d{2})(\d{2})-(\d{4})([A-Z])$/;
+
+// Lee una cédula y devuelve { fechaIso } si es válida o { error } con el motivo
+function leerCedula(texto) {
+    const m = FORMATO_CEDULA.exec(texto);
+    if (!m) {
+        return { error: 'Formato de cédula inválido. Use el formato 000-000000-0000X (por ejemplo 401-121200-1000Q).' };
+    }
+    const dia = Number(m[2]);
+    const mes = Number(m[3]);
+    const yy = Number(m[4]);           // año de 2 dígitos
+
+    // Año de 2 dígitos: se prueba primero 20xx; si cae en el futuro, es 19xx (00 = 2000, 90 = 1990)
+    const hoy = new Date();
+    let anio = 2000 + yy;
+    if (new Date(anio, mes - 1, dia) > hoy) anio = 1900 + yy;
+
+    // La fecha debe existir de verdad (por ejemplo, no 31 de febrero ni mes 13)
+    const f = new Date(anio, mes - 1, dia);
+    if (f.getFullYear() !== anio || f.getMonth() !== mes - 1 || f.getDate() !== dia) {
+        return { error: 'La cédula tiene una fecha de nacimiento inválida (los 6 dígitos del medio deben ser día, mes y año).' };
+    }
+    const iso = `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    return { fechaIso: iso };
+}
+
+// Valida la cédula escrita. Si es válida, rellena la fecha de nacimiento.
+// mostrarError = true: muestra el aviso en rojo (al salir del campo o al registrar).
+// Devuelve true si la cédula está vacía o es válida.
+function validarCedula(mostrarError) {
+    const campo = el('campoCedula');
+    const texto = campo.value.trim().toUpperCase();
+    campo.classList.remove('is-invalid');
+    if (!texto) return true;       // vacía: si es obligatoria (mayor de edad) lo valida el servidor
+
+    const r = leerCedula(texto);
+    if (r.error) {
+        if (mostrarError) {
+            el('errorCedula').textContent = r.error;
+            campo.classList.add('is-invalid');
+        }
+        return false;
+    }
+    el('campoFecha').value = r.fechaIso;
+    actualizarAyudaTutor();        // la edad cambió: se actualiza el aviso del tutor
+    return true;
+}
+
+// Mientras se escribe: apenas la cédula esté completa y sea válida, se rellena la fecha
+el('campoCedula').addEventListener('input', () => validarCedula(false));
+// ---------- Fotografía (opcional) ----------
+let urlVista = null;   // dirección temporal de la vista previa
+
+el('archivoFoto').addEventListener('change', () => {
+    const archivo = el('archivoFoto').files[0];
+    if (urlVista) { URL.revokeObjectURL(urlVista); urlVista = null; }
+    el('vistaFoto').classList.add('d-none');
+    el('sinFoto').classList.remove('d-none');
+    if (!archivo) return;
+
+    // Validaciones simples (el servidor comprueba además el contenido real)
+    if (!['image/jpeg', 'image/png'].includes(archivo.type)) {
+        mostrarMensaje('warning', 'La fotografía debe ser JPG o PNG.');
+        el('archivoFoto').value = '';
+        return;
+    }
+    if (archivo.size > 2 * 1024 * 1024) {
+        mostrarMensaje('warning', 'La imagen no puede superar los 2 MB.');
+        el('archivoFoto').value = '';
+        return;
+    }
+    mostrarMensaje(null, '');
+    urlVista = URL.createObjectURL(archivo);
+    el('vistaFoto').src = urlVista;
+    el('vistaFoto').classList.remove('d-none');
+    el('sinFoto').classList.add('d-none');
+});
 
 // ---------- Agregar un municipio nuevo ----------
 // Muestra u oculta la cajita para escribir el nombre
@@ -355,7 +455,11 @@ el('btnGuardarMunicipio').addEventListener('click', async () => {
         docente: null,
       };
 
-      // Validaciones simples (las reglas de negocio las valida el servidor)
+
+        // La cédula, si se escribió, debe tener el formato correcto
+        el('campoCedula').value = el('campoCedula').value.trim().toUpperCase();
+        if (!validarCedula(true)) { mostrarMensaje('warning', 'Corrija la cédula: el formato no es válido.'); return; }
+        // Validaciones simples (las reglas de negocio las valida el servidor
       if (!cuerpo.nombreCompleto) { mostrarMensaje('warning', 'El nombre es obligatorio.'); return; }
       if (!cuerpo.fechaNacimiento) { mostrarMensaje('warning', 'La fecha de nacimiento es obligatoria.'); return; }
       if (!cuerpo.idBarrio) { mostrarMensaje('warning', 'Seleccione el departamento, el municipio y el barrio.'); return; }
@@ -389,7 +493,17 @@ el('btnGuardarMunicipio').addEventListener('click', async () => {
       const r = await api('/api/personas', { method: 'POST', body: cuerpo });
       boton.disabled = false;
 
-      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+        if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+
+        // Fotografía (opcional): se sube después de registrar, porque necesita el id de la persona
+        let avisoFoto = '';
+        const archivoFoto = el('archivoFoto').files[0];
+        if (archivoFoto && r.datos?.idPersona) {
+            const datos = new FormData();
+            datos.append('archivo', archivoFoto);
+            const rf = await api(`/api/personas/${r.datos.idPersona}/fotografia`, { method: 'PUT', body: datos });
+            if (!rf.ok) avisoFoto = ` Pero la fotografía no se pudo guardar (${mensajeError(rf)}). Puede agregarla desde Personas y roles.`;
+        }
 
       // Registro correcto: se oculta el formulario y se muestra el resultado
       el('formPersona').classList.add('d-none');
@@ -397,10 +511,10 @@ el('btnGuardarMunicipio').addEventListener('click', async () => {
       ok.className = '';
       ok.replaceChildren();
       const alerta = document.createElement('div');
-      alerta.className = 'alert alert-success';
-      alerta.textContent = r.datos?.reutilizada
-        ? `Se agregaron los roles a ${r.datos.nombreCompleto}.`
-        : `${r.datos?.nombreCompleto} se registró correctamente.`;
+        alerta.className = avisoFoto ? 'alert alert-warning' : 'alert alert-success';
+        alerta.textContent = (r.datos?.reutilizada
+            ? `Se agregaron los roles a ${r.datos.nombreCompleto}.`
+            : `${r.datos?.nombreCompleto} se registró correctamente.`) + avisoFoto;
       const otra = document.createElement('a');
       otra.href = 'persona-nueva.html';
       otra.className = 'btn btn-primario me-2';

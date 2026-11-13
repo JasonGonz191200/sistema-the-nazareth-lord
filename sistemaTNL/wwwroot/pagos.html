@@ -1,0 +1,730 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pagos - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <h1 class="h3 mb-3">Pagos</h1>
+
+            <!-- ===== 1. Estudiante y matrícula ===== -->
+            <div class="card card-body mb-3">
+                <h2 class="h6 text-uppercase text-muted">1. Estudiante y matrícula</h2>
+                <div id="bloqueBusqueda">
+                    <input id="campoBuscarEst" type="search" class="form-control" autocomplete="off"
+                           placeholder="Escriba nombre, cédula o carné del estudiante (mínimo 2 letras)">
+                    <div id="listaEstudiantes" class="list-group mt-1"></div>
+                </div>
+                <!-- Estudiante ya elegido -->
+                <div id="estElegido" class="alert alert-secondary d-none mb-0 d-flex justify-content-between align-items-center"></div>
+
+                <div id="bloqueMatricula" class="mt-3 d-none">
+                    <label class="form-label" for="selMatricula">Matrícula</label>
+                    <select id="selMatricula" class="form-select"></select>
+                </div>
+                <div id="mensajeMatricula" class="mt-2"></div>
+            </div>
+
+            <!-- ===== 2. Registrar pago (solo matrícula habilitada) ===== -->
+            <div id="panelPago" class="card card-body mb-3 d-none">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h2 class="h6 text-uppercase text-muted mb-0">2. Registrar pago</h2>
+                    <button type="button" id="btnAgregarCobro" class="btn btn-sm btn-outline-primary">+ Agregar cobro</button>
+                </div>
+                <div id="mensajePago"></div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-6 col-md-3">
+                        <label class="form-label" for="selMoneda">Moneda recibida</label>
+                        <select id="selMoneda" class="form-select">
+                            <option value="USD">Dólares (USD)</option>
+                            <option value="NIO">Córdobas (NIO)</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label" for="campoTC">Tipo de cambio</label>
+                        <input id="campoTC" type="number" step="0.0001" min="0" class="form-control" placeholder="Ej.: 36.6243">
+                        <div class="form-text">Córdobas por 1 dólar.</div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label" for="campoFecha">Fecha del pago</label>
+                        <input id="campoFecha" type="date" class="form-control">
+                    </div>
+                </div>
+
+                <!-- Conceptos pendientes -->
+                <div id="cuerpoObl" class="table-responsive"></div>
+
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                    <div id="totalPago" class="fw-semibold">Total a recibir: —</div>
+                    <button type="button" id="btnRegistrar" class="btn btn-primario">Registrar pago</button>
+                </div>
+            </div>
+
+            <!-- ===== 3. Historial ===== -->
+            <div id="panelHistorial" class="card card-body d-none">
+                <h2 class="h6 text-uppercase text-muted">3. Historial de pagos</h2>
+                <div id="mensajeHist"></div>
+                <div id="resultadoHistorial" class="table-responsive"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Ventana de detalle del pago ===== -->
+    <div class="modal fade" id="modalDetalle" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="detalleTitulo">Detalle del pago</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body" id="detalleContenido"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Ventana para anular un pago ===== -->
+    <div class="modal fade" id="modalAnular" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="anularTitulo">Anular pago</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="anularMensaje"></div>
+                    <p class="text-danger small">El pago no se borra: queda como anulado y los saldos de los conceptos se recalculan.</p>
+                    <label class="form-label" for="campoMotivo">Motivo de la anulación</label>
+                    <input id="campoMotivo" class="form-control" maxlength="250">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btnAnular" class="btn btn-danger">Anular pago</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Ventana para agregar un cobro a la matrícula ===== -->
+    <div class="modal fade" id="modalCobro" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5">Agregar cobro</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="cobroMensaje"></div>
+                    <div class="mb-3">
+                        <label class="form-label" for="selConcepto">Concepto</label>
+                        <select id="selConcepto" class="form-select"></select>
+                    </div>
+                    <!-- Solo para "Otro concepto" -->
+                    <div id="bloqueDescripcion" class="mb-3 d-none">
+                        <label class="form-label" for="campoDescripcion">Descripción</label>
+                        <input id="campoDescripcion" class="form-control" maxlength="250">
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label" for="campoPrecio">Precio (USD)</label>
+                            <input id="campoPrecio" type="number" step="0.01" min="0" class="form-control">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="campoDescuentoCobro">Descuento (USD, opcional)</label>
+                            <input id="campoDescuentoCobro" type="number" step="0.01" min="0" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btnGuardarCobro" class="btn btn-primario">Agregar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+            // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+            let matriculas = [];           // matrículas del estudiante elegido
+            let matriculaActual = null;    // matrícula seleccionada
+            let filas = [];                // filas de conceptos pendientes: { o, chk, inpMonto, inpDesc, celdaNio }
+            let pagoAAnular = null;        // pago que se está por anular
+            const modalDetalle = new bootstrap.Modal(el('modalDetalle'));
+            const modalAnular = new bootstrap.Modal(el('modalAnular'));
+
+            // ---------- Utilidades ----------
+            // Redondeo a 2 decimales
+            function r2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+            // "2026-12-01" -> "01/12/2026" (sin pasar por Date para evitar corrimientos de zona horaria)
+            function fechaCorta(iso) {
+              if (!iso) return '—';
+              const [a, m, d] = iso.substring(0, 10).split('-');
+              return `${d}/${m}/${a}`;
+            }
+
+            function dinero(n, moneda = 'USD') {
+              if (n === null || n === undefined) return '—';
+              return (moneda === 'NIO' ? 'C$ ' : 'US$ ') + Number(n).toFixed(2);
+            }
+
+            // Fecha de hoy (hora local) en formato yyyy-mm-dd, para el campo de fecha
+            function hoyIso() {
+              const d = new Date();
+              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+
+            // Mensaje en una caja cualquiera (tipo null = limpiar)
+            function poner(idCaja, tipo, texto) {
+              const caja = el(idCaja);
+              caja.replaceChildren();
+              if (!tipo) return;
+              const d = document.createElement('div');
+              d.className = `alert alert-${tipo}`;
+              d.textContent = texto;      // textContent: nunca se interpreta como código
+              caja.appendChild(d);
+            }
+
+            // Recordar el último tipo de cambio es solo una comodidad: si el navegador no deja guardar, no pasa nada
+            function leerTC() { try { return localStorage.getItem('tnl_tipo_cambio') ?? ''; } catch { return ''; } }
+            function guardarTC(v) { try { localStorage.setItem('tnl_tipo_cambio', String(v)); } catch { /* sin almacenamiento */ } }
+
+            function celda(tr, texto, clase) {
+              const td = tr.insertCell();
+              td.textContent = texto;
+              if (clase) td.className = clase;
+              return td;
+            }
+
+            function cabecera(tabla, titulos) {
+              const cab = tabla.createTHead().insertRow();
+              for (const t of titulos) {
+                const th = document.createElement('th');
+                th.textContent = t;
+                cab.appendChild(th);
+              }
+            }
+
+            // ---------- Búsqueda de estudiante (mientras se escribe) ----------
+            let temporizador = null;
+            let contadorBusqueda = 0;      // para ignorar respuestas viejas
+
+            async function buscarEstudiantes() {
+              const mi = ++contadorBusqueda;
+              const texto = el('campoBuscarEst').value.trim();
+              const lista = el('listaEstudiantes');
+              if (texto.length < 2) { lista.replaceChildren(); return; }
+
+              const r = await api(`/api/matriculas/estudiantes?buscar=${encodeURIComponent(texto)}`);
+              if (mi !== contadorBusqueda) return;     // llegó tarde: ya hay otra búsqueda
+              lista.replaceChildren();
+              if (!r.ok) { poner('mensajeMatricula', 'danger', mensajeError(r)); return; }
+              if (r.datos.length === 0) {
+                const v = document.createElement('div');
+                v.className = 'list-group-item text-muted';
+                v.textContent = 'No se encontraron estudiantes habilitados con ese dato.';
+                lista.appendChild(v);
+                return;
+              }
+              for (const e of r.datos) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'list-group-item list-group-item-action';
+                b.textContent = `${e.nombre} - carné ${e.numeroCarne ?? 'sin carné'}${e.cedula ? ' - ' + e.cedula : ''}`;
+                b.addEventListener('click', () => elegirEstudiante(e));
+                lista.appendChild(b);
+              }
+            }
+
+            el('campoBuscarEst').addEventListener('input', () => {
+              clearTimeout(temporizador);
+              temporizador = setTimeout(buscarEstudiantes, 300);
+            });
+
+            async function elegirEstudiante(e) {
+              el('listaEstudiantes').replaceChildren();
+              el('bloqueBusqueda').classList.add('d-none');
+
+              const caja = el('estElegido');
+              caja.classList.remove('d-none');
+              caja.replaceChildren();
+              const t = document.createElement('span');
+              t.textContent = `${e.nombre} (carné ${e.numeroCarne ?? 'sin carné'})`;
+              const quitar = document.createElement('button');
+              quitar.type = 'button';
+              quitar.className = 'btn btn-sm btn-outline-secondary';
+              quitar.textContent = 'Cambiar';
+              quitar.addEventListener('click', quitarEstudiante);
+              caja.append(t, quitar);
+
+              // Matrículas del estudiante
+              const r = await api(`/api/matriculas?idEstudiante=${e.idEstudiante}`);
+              if (!r.ok) { poner('mensajeMatricula', 'danger', mensajeError(r)); return; }
+              matriculas = r.datos;
+              if (matriculas.length === 0) {
+                poner('mensajeMatricula', 'warning', 'Este estudiante no tiene matrículas.');
+                return;
+              }
+              poner('mensajeMatricula', null, '');
+
+              const sel = el('selMatricula');
+              sel.replaceChildren();
+              const vacia = document.createElement('option');
+              vacia.value = '';
+              vacia.textContent = 'Seleccione...';
+              sel.appendChild(vacia);
+              for (const m of matriculas) {
+                const o = document.createElement('option');
+                o.value = String(m.idMatricula);
+                o.textContent = `${m.curso} (${m.modalidad}) - ${m.grupo} - ${fechaCorta(m.fechaMatricula)}${m.estado ? '' : ' [Inhabilitada]'}`;
+                sel.appendChild(o);
+              }
+              el('bloqueMatricula').classList.remove('d-none');
+              // Si solo tiene una matrícula, se elige sola
+              if (matriculas.length === 1) { sel.value = String(matriculas[0].idMatricula); seleccionarMatricula(); }
+            }
+
+            function quitarEstudiante() {
+              matriculas = [];
+              matriculaActual = null;
+              el('estElegido').classList.add('d-none');
+              el('bloqueMatricula').classList.add('d-none');
+              el('bloqueBusqueda').classList.remove('d-none');
+              el('panelPago').classList.add('d-none');
+              el('panelHistorial').classList.add('d-none');
+              poner('mensajeMatricula', null, '');
+              el('campoBuscarEst').value = '';
+              el('campoBuscarEst').focus();
+            }
+
+            // ---------- Matrícula elegida ----------
+            el('selMatricula').addEventListener('change', seleccionarMatricula);
+
+            async function seleccionarMatricula() {
+              const id = Number(el('selMatricula').value);
+              matriculaActual = matriculas.find((m) => m.idMatricula === id) ?? null;
+              poner('mensajePago', null, '');
+              poner('mensajeHist', null, '');
+
+              if (!matriculaActual) {
+                el('panelPago').classList.add('d-none');
+                el('panelHistorial').classList.add('d-none');
+                return;
+              }
+
+              el('panelHistorial').classList.remove('d-none');
+              cargarHistorial();
+
+              // RN026: una matrícula inhabilitada no admite pagos nuevos, solo se consulta su historial
+              if (!matriculaActual.estado) {
+                el('panelPago').classList.add('d-none');
+                poner('mensajeMatricula', 'info', 'La matrícula está inhabilitada: no admite pagos nuevos (RN026). Solo puede consultar su historial.');
+                return;
+              }
+              poner('mensajeMatricula', null, '');
+              el('panelPago').classList.remove('d-none');
+              el('selMoneda').value = 'USD';
+              el('campoTC').value = leerTC();
+              el('campoFecha').value = hoyIso();
+              el('campoFecha').max = hoyIso();        // la fecha no puede ser futura
+              cargarObligaciones();
+            }
+
+            // ---------- Conceptos pendientes ----------
+            async function cargarObligaciones() {
+              filas = [];
+              el('cuerpoObl').replaceChildren();
+              actualizarTotales();
+              const r = await api(`/api/pagos/obligaciones?idMatricula=${matriculaActual.idMatricula}`);
+              if (!r.ok) { poner('mensajePago', 'danger', mensajeError(r)); return; }
+              if (r.datos.length === 0) {
+                poner('mensajePago', 'success', 'Esta matrícula no tiene conceptos pendientes de pago.');
+                return;
+              }
+
+              const tabla = document.createElement('table');
+              tabla.className = 'table table-sm align-middle';
+              cabecera(tabla, ['', 'Concepto', 'Mes', 'Precio final', 'Abonado', 'Saldo (USD)', 'Saldo (C$)', 'Descuento (USD)', 'Monto a abonar']);
+              const cuerpo = tabla.createTBody();
+
+              for (const o of r.datos) {
+                const tr = cuerpo.insertRow();
+
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.className = 'form-check-input';
+                tr.insertCell().appendChild(chk);
+
+                celda(tr, o.descripcion);
+                celda(tr, o.mes ? fechaCorta(o.mes).substring(3) : '—');     // mm/aaaa
+                celda(tr, dinero(o.precioFinalUsd));
+                celda(tr, dinero(o.totalAbonadoUsd));
+                celda(tr, dinero(o.saldoPendienteUsd));
+                const celdaNio = celda(tr, '—');
+
+                // Descuento: solo se puede definir si el concepto todavía no tiene abonos (RN027)
+                const inpDesc = document.createElement('input');
+                inpDesc.type = 'number'; inpDesc.step = '0.01'; inpDesc.min = '0';
+                inpDesc.className = 'form-control form-control-sm';
+                inpDesc.style.width = '7rem';
+                inpDesc.placeholder = Number(o.descuentoUsd ?? 0).toFixed(2);
+                inpDesc.disabled = true;
+                tr.insertCell().appendChild(inpDesc);
+
+                const inpMonto = document.createElement('input');
+                inpMonto.type = 'number'; inpMonto.step = '0.01'; inpMonto.min = '0';
+                inpMonto.className = 'form-control form-control-sm';
+                inpMonto.style.width = '8rem';
+                inpMonto.disabled = true;
+                tr.insertCell().appendChild(inpMonto);
+
+                const fila = { o, chk, inpMonto, inpDesc, celdaNio };
+                filas.push(fila);
+
+                // Al marcar el concepto se habilitan sus campos y se sugiere el saldo completo
+                chk.addEventListener('change', () => {
+                  inpMonto.disabled = !chk.checked;
+                  inpDesc.disabled = !chk.checked || Number(o.totalAbonadoUsd) > 0;
+                  if (!chk.checked) { inpMonto.value = ''; inpDesc.value = ''; delete inpMonto.dataset.editado; }
+                  else sugerirMonto(fila);
+                  actualizarTotales();
+                });
+                // Si la persona escribe el monto a mano, ya no se pisa con la sugerencia
+                inpMonto.addEventListener('input', () => { inpMonto.dataset.editado = '1'; actualizarTotales(); });
+                inpDesc.addEventListener('input', () => { sugerirMonto(fila); actualizarTotales(); });
+              }
+              const wrap = el('cuerpoObl');
+              wrap.replaceChildren(tabla);
+              refrescarSaldosNio();
+            }
+
+            // Saldo del concepto considerando el descuento escrito (si hay)
+            function saldoEfectivoUsd(f) {
+              const d = f.inpDesc.value.trim() === '' ? Number(f.o.descuentoUsd ?? 0) : Number(f.inpDesc.value);
+              return r2(Number(f.o.precioOriginalUsd) - d - Number(f.o.totalAbonadoUsd));
+            }
+
+            // Sugiere el saldo completo en la moneda elegida (si el monto no fue escrito a mano)
+            function sugerirMonto(f) {
+              if (!f.chk.checked || f.inpMonto.dataset.editado) return;
+              const saldo = saldoEfectivoUsd(f);
+              const tc = Number(el('campoTC').value);
+              if (el('selMoneda').value === 'USD') f.inpMonto.value = saldo > 0 ? saldo.toFixed(2) : '';
+              else f.inpMonto.value = tc > 0 && saldo > 0 ? r2(saldo * tc).toFixed(2) : '';
+            }
+
+            // Columna "Saldo (C$)": referencia según el tipo de cambio escrito
+            function refrescarSaldosNio() {
+              const tc = Number(el('campoTC').value);
+              for (const f of filas) f.celdaNio.textContent = tc > 0 ? dinero(r2(Number(f.o.saldoPendienteUsd ?? 0) * tc), 'NIO') : '—';
+            }
+
+            // Al cambiar moneda o tipo de cambio se recalculan las sugerencias y los totales
+            function alCambiarMonedaOTC() {
+              refrescarSaldosNio();
+              for (const f of filas) sugerirMonto(f);
+              actualizarTotales();
+            }
+            el('selMoneda').addEventListener('change', alCambiarMonedaOTC);
+            el('campoTC').addEventListener('input', alCambiarMonedaOTC);
+
+            // Total a recibir (en la moneda elegida) y su equivalente en dólares
+            function actualizarTotales() {
+              const moneda = el('selMoneda').value;
+              const tc = Number(el('campoTC').value);
+              let total = 0, usd = 0;
+              for (const f of filas) {
+                if (!f.chk.checked) continue;
+                const m = Number(f.inpMonto.value);
+                if (!(m > 0)) continue;
+                total += m;
+                usd += moneda === 'USD' ? m : (tc > 0 ? r2(m / tc) : 0);
+              }
+              el('totalPago').textContent = total > 0
+                ? `Total a recibir: ${dinero(r2(total), moneda)}${moneda === 'NIO' && tc > 0 ? `  (equivale a ${dinero(r2(usd))})` : ''}`
+                : 'Total a recibir: —';
+            }
+
+            // ---------- Registrar el pago ----------
+            el('btnRegistrar').addEventListener('click', async () => {
+              poner('mensajePago', null, '');
+              const moneda = el('selMoneda').value;
+              const tc = Number(el('campoTC').value);
+              const seleccion = filas.filter((f) => f.chk.checked);
+
+              // Validaciones simples (las reglas de saldo las valida el servidor)
+              if (!(tc > 0)) { poner('mensajePago', 'warning', 'Escriba el tipo de cambio (córdobas por 1 dólar).'); return; }
+              if (Math.round(tc * 10000) / 10000 !== tc) { poner('mensajePago', 'warning', 'El tipo de cambio admite hasta 4 decimales.'); return; }
+              if (seleccion.length === 0) { poner('mensajePago', 'warning', 'Marque al menos un concepto para abonar.'); return; }
+              if (!el('campoFecha').value) { poner('mensajePago', 'warning', 'Indique la fecha del pago.'); return; }
+
+              const detalles = [];
+              for (const f of seleccion) {
+                const monto = Number(f.inpMonto.value);
+                if (!(monto > 0)) { poner('mensajePago', 'warning', `Escriba un monto mayor que cero para "${f.o.descripcion}".`); return; }
+                if (r2(monto) !== monto) { poner('mensajePago', 'warning', `El monto de "${f.o.descripcion}" admite hasta 2 decimales.`); return; }
+                // El descuento solo se envía si se escribió uno (y el concepto no tiene abonos)
+                const desc = f.inpDesc.value.trim() === '' || f.inpDesc.disabled ? null : Number(f.inpDesc.value);
+                detalles.push({ idObligacion: f.o.idObligacion, monto, descuentoUsd: desc, observacion: null });
+              }
+
+              const resumen = el('totalPago').textContent;
+              if (!confirm(`¿Registrar el pago?\n\n${resumen}\nLos pagos no se pueden borrar; solo se pueden anular.`)) return;
+
+              const boton = el('btnRegistrar');
+              boton.disabled = true;
+              const r = await api('/api/pagos', {
+                method: 'POST',
+                body: { idMatricula: matriculaActual.idMatricula, moneda, tipoCambio: tc, fechaPago: el('campoFecha').value, detalles },
+              });
+              boton.disabled = false;
+
+              if (!r.ok) { poner('mensajePago', 'danger', mensajeError(r)); return; }
+              guardarTC(tc);
+
+              // Aviso de éxito con enlace para abrir el comprobante en PDF
+              const p = r.datos.pago;
+              const caja = el('mensajePago');
+              caja.replaceChildren();
+              const a = document.createElement('div');
+              a.className = 'alert alert-success';
+              a.append(document.createTextNode(`Pago registrado. Comprobante ${p.comprobante ?? ''}. `));
+              const enlace = document.createElement('a');
+              enlace.href = `/api/pagos/${p.idPago}/comprobante`;
+              enlace.target = '_blank';
+              enlace.rel = 'noopener';
+              enlace.className = 'alert-link';
+              enlace.textContent = 'Abrir comprobante (PDF)';
+              a.appendChild(enlace);
+              caja.appendChild(a);
+
+              await cargarObligaciones();
+              await cargarHistorial();
+            });
+
+            // ---------- Historial ----------
+            async function cargarHistorial() {
+              el('resultadoHistorial').replaceChildren();
+              const r = await api(`/api/pagos?idMatricula=${matriculaActual.idMatricula}`);
+              if (!r.ok) { poner('mensajeHist', 'danger', mensajeError(r)); return; }
+              if (r.datos.length === 0) { poner('mensajeHist', 'info', 'Esta matrícula todavía no tiene pagos.'); return; }
+              poner('mensajeHist', null, '');
+
+              const tabla = document.createElement('table');
+              tabla.className = 'table table-hover align-middle';
+              cabecera(tabla, ['Comprobante', 'Fecha', 'Recibido', 'Equivale (USD)', 'Estado', '']);
+              const cuerpo = tabla.createTBody();
+
+              for (const p of r.datos) {
+                const tr = cuerpo.insertRow();
+                celda(tr, p.comprobante ?? '—');
+                celda(tr, fechaCorta(p.fechaPago));
+                celda(tr, dinero(p.totalRecibido, p.monedaRecibida));
+                celda(tr, dinero(p.totalEquivalenteUsd));
+
+                const tdEstado = tr.insertCell();
+                const badge = document.createElement('span');
+                badge.className = 'badge ' + (p.estado === 'Anulado' ? 'text-bg-secondary' : 'text-bg-success');
+                badge.textContent = p.estado;
+                tdEstado.appendChild(badge);
+
+                const acciones = tr.insertCell();
+                acciones.className = 'text-end text-nowrap';
+
+                const bDet = document.createElement('button');
+                bDet.type = 'button';
+                bDet.className = 'btn btn-sm btn-outline-secondary me-2';
+                bDet.textContent = 'Detalle';
+                bDet.addEventListener('click', () => abrirDetalle(p.idPago));
+
+                const bPdf = document.createElement('a');
+                bPdf.href = `/api/pagos/${p.idPago}/comprobante`;
+                bPdf.target = '_blank';
+                bPdf.rel = 'noopener';
+                bPdf.className = 'btn btn-sm btn-outline-primary me-2';
+                bPdf.textContent = 'Comprobante';
+
+                acciones.append(bDet, bPdf);
+
+                if (p.estado !== 'Anulado') {
+                  const bAn = document.createElement('button');
+                  bAn.type = 'button';
+                  bAn.className = 'btn btn-sm btn-outline-danger';
+                  bAn.textContent = 'Anular';
+                  bAn.addEventListener('click', () => abrirAnular(p));
+                  acciones.appendChild(bAn);
+                }
+              }
+              el('resultadoHistorial').replaceChildren(tabla);
+            }
+
+            // ---------- Detalle de un pago ----------
+            async function abrirDetalle(idPago) {
+              const r = await api(`/api/pagos/${idPago}`);
+              if (!r.ok) { poner('mensajeHist', 'danger', mensajeError(r)); return; }
+              const { pago, detalles } = r.datos;
+
+              el('detalleTitulo').textContent = `Pago ${pago.comprobante ?? ''} - ${pago.estudiante}`;
+              const caja = el('detalleContenido');
+              caja.replaceChildren();
+
+              const linea = (etq, val) => {
+                const p = document.createElement('p');
+                p.className = 'mb-1';
+                const b = document.createElement('strong');
+                b.textContent = etq + ': ';
+                p.append(b, document.createTextNode(String(val)));
+                return p;
+              };
+              caja.append(
+                linea('Fecha', fechaCorta(pago.fechaPago)),
+                linea('Recibido', dinero(pago.totalRecibido, pago.monedaRecibida)),
+                linea('Tipo de cambio', pago.tipoCambio),
+                linea('Equivale a', `${dinero(pago.totalEquivalenteUsd)} / ${dinero(pago.totalEquivalenteNio, 'NIO')}`),
+                linea('Estado', pago.estado),
+              );
+              if (pago.estado === 'Anulado') {
+                caja.append(linea('Anulado el', fechaCorta(pago.fechaAnulacion)), linea('Motivo', pago.motivoAnulacion ?? '—'));
+              }
+
+              const tabla = document.createElement('table');
+              tabla.className = 'table table-sm mt-3';
+              cabecera(tabla, ['Concepto', 'Abonado', 'Equivale (USD)', 'Saldo actual (USD)', 'Estado']);
+              const cuerpo = tabla.createTBody();
+              for (const d of detalles) {
+                const tr = cuerpo.insertRow();
+                celda(tr, d.concepto);
+                celda(tr, dinero(d.montoAbonado, pago.monedaRecibida));
+                celda(tr, dinero(d.montoEquivalenteUsd));
+                celda(tr, dinero(d.saldoPendienteUsd));
+                celda(tr, d.estadoConcepto);
+              }
+              const wrap = document.createElement('div');
+              wrap.className = 'table-responsive';
+              wrap.appendChild(tabla);
+              caja.appendChild(wrap);
+              modalDetalle.show();
+            }
+
+            // ---------- Anular un pago ----------
+            function abrirAnular(p) {
+              pagoAAnular = p;
+              el('anularTitulo').textContent = `Anular pago ${p.comprobante ?? ''}`;
+              el('campoMotivo').value = '';
+              poner('anularMensaje', null, '');
+              modalAnular.show();
+            }
+
+            el('btnAnular').addEventListener('click', async () => {
+              const motivo = el('campoMotivo').value.trim();
+              if (!motivo) { poner('anularMensaje', 'warning', 'Debe indicar el motivo de la anulación.'); return; }
+
+              const boton = el('btnAnular');
+              boton.disabled = true;
+              const r = await api(`/api/pagos/${pagoAAnular.idPago}/anular`, { method: 'PUT', body: { motivo } });
+              boton.disabled = false;
+
+              if (!r.ok) { poner('anularMensaje', 'danger', mensajeError(r)); return; }
+              modalAnular.hide();
+              poner('mensajePago', 'success', `Pago ${pagoAAnular.comprobante ?? ''} anulado. Los saldos se recalcularon.`);
+              await cargarObligaciones();
+              await cargarHistorial();
+            });
+
+
+// ---------- Agregar un cobro a la matrícula ----------
+const modalCobro = new bootstrap.Modal(el('modalCobro'));
+let conceptos = [];            // catálogo de conceptos opcionales (se carga al abrir la ventana)
+
+el('btnAgregarCobro').addEventListener('click', async () => {
+    poner('cobroMensaje', null, '');
+    el('campoDescripcion').value = '';
+    el('campoPrecio').value = '';
+    el('campoDescuentoCobro').value = '';
+    el('bloqueDescripcion').classList.add('d-none');
+
+    // Catálogo de conceptos que se pueden agregar a mano
+    const r = await api('/api/obligaciones/conceptos');
+    conceptos = r.ok ? r.datos : [];
+
+    const sel = el('selConcepto');
+    sel.replaceChildren();
+    const vacia = document.createElement('option');
+    vacia.value = '';
+    vacia.textContent = 'Seleccione...';
+    sel.appendChild(vacia);
+    for (const c of conceptos) {
+        const o = document.createElement('option');
+        o.value = String(c.idConcepto);
+        o.textContent = `${c.nombre} (US$ ${Number(c.precioGeneralUsd).toFixed(2)})`;
+        sel.appendChild(o);
+    }
+    const otro = document.createElement('option');
+    otro.value = 'otro';
+    otro.textContent = 'Otro concepto (especificar)';
+    sel.appendChild(otro);
+
+    modalCobro.show();
+});
+
+// Al elegir un concepto del catálogo se propone su precio; "Otro" pide descripción y monto
+el('selConcepto').addEventListener('change', () => {
+    const v = el('selConcepto').value;
+    el('bloqueDescripcion').classList.toggle('d-none', v !== 'otro');
+    if (v === 'otro' || v === '') { el('campoPrecio').value = ''; return; }
+    const c = conceptos.find((x) => String(x.idConcepto) === v);
+    el('campoPrecio').value = c ? Number(c.precioGeneralUsd).toFixed(2) : '';
+});
+
+el('btnGuardarCobro').addEventListener('click', async () => {
+    poner('cobroMensaje', null, '');
+    const v = el('selConcepto').value;
+    const precio = Number(el('campoPrecio').value);
+    const descripcion = el('campoDescripcion').value.trim();
+    const descuento = el('campoDescuentoCobro').value.trim() === '' ? null : Number(el('campoDescuentoCobro').value);
+
+    // Validaciones simples (las reglas las valida el servidor)
+    if (!v) { poner('cobroMensaje', 'warning', 'Seleccione el concepto.'); return; }
+    if (v === 'otro' && !descripcion) { poner('cobroMensaje', 'warning', 'Escriba la descripción del concepto.'); return; }
+    if (!(precio > 0)) { poner('cobroMensaje', 'warning', 'El precio debe ser mayor que cero.'); return; }
+    if (r2(precio) !== precio) { poner('cobroMensaje', 'warning', 'El precio admite hasta 2 decimales.'); return; }
+
+    const boton = el('btnGuardarCobro');
+    boton.disabled = true;
+    const r = await api('/api/obligaciones', {
+        method: 'POST',
+        body: {
+            idMatricula: matriculaActual.idMatricula,
+            idConcepto: v === 'otro' ? null : Number(v),
+            descripcion: v === 'otro' ? descripcion : null,
+            precioUsd: precio,
+            descuentoUsd: descuento,
+        },
+    });
+    boton.disabled = false;
+
+    if (!r.ok) { poner('cobroMensaje', 'danger', mensajeError(r)); return; }
+    modalCobro.hide();
+    poner('mensajePago', 'success', `Cobro "${r.datos.descripcion}" agregado a la matrícula.`);
+    await cargarObligaciones();
+});
+            // ---------- Inicio ----------
+            montarLayout('pagos.html');
+    </script>
+</body>
+</html>

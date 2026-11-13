@@ -1,0 +1,149 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Recuperar contraseña - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+
+    <div class="login-pagina">
+
+        <!-- Panel de marca (igual al del login) -->
+        <section class="login-marca">
+            <div class="insignia" aria-hidden="true">
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 6.5C10.5 5.2 8.2 4.5 4 4.5v12.8c4.2 0 6.5.7 8 2 1.5-1.3 3.8-2 8-2V4.5c-4.2 0-6.5.7-8 2z" />
+                    <path d="M12 6.5v12.8" />
+                </svg>
+            </div>
+            <h1>The Nazareth Lord</h1>
+            <p class="subtitulo">Academia de Inglés</p>
+            <div class="linea"></div>
+            <p>Sistema de matrícula y pagos.</p>
+        </section>
+
+        <section class="login-formulario">
+            <div class="login-caja">
+                <h2 class="h4 mb-1">Recuperar contraseña</h2>
+                <div id="alerta" class="mt-3"></div>
+
+                <!-- Paso 1: pedir el código por correo -->
+                <form id="formPaso1" novalidate>
+                    <p class="text-muted">Escriba el correo de su cuenta. Le enviaremos un código para crear una contraseña nueva.</p>
+                    <div class="mb-3">
+                        <label for="correo" class="form-label">Correo</label>
+                        <input id="correo" type="email" class="form-control form-control-lg" autocomplete="email" required autofocus>
+                    </div>
+                    <button id="btnPaso1" type="submit" class="btn btn-primario btn-lg w-100">Enviar código</button>
+                    <div class="text-center mt-3">
+                        <button type="button" id="btnYaTengo" class="btn btn-link btn-sm">Ya tengo un código</button>
+                    </div>
+                </form>
+
+                <!-- Paso 2: usar el código -->
+                <form id="formPaso2" class="d-none" novalidate autocomplete="off">
+                    <p class="text-muted">Escriba el código que recibió por correo y elija su contraseña nueva.</p>
+                    <div class="mb-3">
+                        <label for="codigo" class="form-label">Código</label>
+                        <input id="codigo" type="text" class="form-control form-control-lg" autocomplete="off" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="clave1" class="form-label">Contraseña nueva</label>
+                        <input id="clave1" type="password" class="form-control form-control-lg" autocomplete="new-password" required>
+                        <div class="form-text">Mínimo 8 caracteres.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="clave2" class="form-label">Repetir contraseña</label>
+                        <input id="clave2" type="password" class="form-control form-control-lg" autocomplete="new-password" required>
+                    </div>
+                    <button id="btnPaso2" type="submit" class="btn btn-primario btn-lg w-100">Cambiar contraseña</button>
+                </form>
+
+                <div class="text-center mt-4">
+                    <a href="index.html" class="small">← Volver a iniciar sesión</a>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+    // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+    const alerta = document.getElementById('alerta');
+
+    // Muestra un mensaje (tipo null = limpiar)
+    function mensaje(tipo, texto) {
+      alerta.replaceChildren();
+      if (!tipo) return;
+      const d = document.createElement('div');
+      d.className = `alert alert-${tipo}`;
+      d.textContent = texto;      // textContent: nunca se interpreta como código
+      alerta.appendChild(d);
+    }
+
+    // Pasa al paso 2 (usar el código)
+    function irAlPaso2() {
+      document.getElementById('formPaso1').classList.add('d-none');
+      document.getElementById('formPaso2').classList.remove('d-none');
+      document.getElementById('codigo').focus();
+    }
+
+    // ---------- Paso 1: pedir el código ----------
+    document.getElementById('btnYaTengo').addEventListener('click', () => { mensaje(null, ''); irAlPaso2(); });
+
+    document.getElementById('formPaso1').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      mensaje(null, '');
+      const correo = document.getElementById('correo').value.trim();
+      if (!correo.includes('@')) { mensaje('warning', 'Escriba un correo válido.'); return; }
+
+      const boton = document.getElementById('btnPaso1');
+      boton.disabled = true;
+      boton.textContent = 'Enviando...';
+      const r = await api('/api/auth/recuperar', { method: 'POST', body: { correo }, sinRedireccion: true });
+      boton.disabled = false;
+      boton.textContent = 'Enviar código';
+
+      if (!r.ok) { mensaje('danger', mensajeError(r)); return; }
+      // El servidor responde siempre lo mismo, exista o no el correo
+      mensaje('info', r.datos?.mensaje ?? 'Si el correo corresponde a una cuenta, recibirá un código.');
+      irAlPaso2();
+    });
+
+    // ---------- Paso 2: usar el código ----------
+    document.getElementById('formPaso2').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      mensaje(null, '');
+      const token = document.getElementById('codigo').value.trim();
+      const clave1 = document.getElementById('clave1').value;
+      const clave2 = document.getElementById('clave2').value;
+
+      // Validaciones simples (el servidor valida el código y su vigencia)
+      if (!token) { mensaje('warning', 'Escriba el código que recibió por correo.'); return; }
+      if (clave1.length < 8) { mensaje('warning', 'La contraseña debe tener al menos 8 caracteres.'); return; }
+      if (clave1 !== clave2) { mensaje('warning', 'Las contraseñas no coinciden.'); return; }
+
+      const boton = document.getElementById('btnPaso2');
+      boton.disabled = true;
+      boton.textContent = 'Guardando...';
+      const r = await api('/api/auth/restablecer', {
+        method: 'POST',
+        body: { token, nuevaContrasena: clave1 },
+        sinRedireccion: true,
+      });
+      boton.disabled = false;
+      boton.textContent = 'Cambiar contraseña';
+
+      if (!r.ok) { mensaje('danger', mensajeError(r)); return; }
+
+      // Listo: se oculta el formulario y se invita a iniciar sesión
+      document.getElementById('formPaso2').classList.add('d-none');
+      mensaje('success', r.datos?.mensaje ?? 'La contraseña se restableció correctamente. Ya puede iniciar sesión.');
+    });
+    </script>
+</body>
+</html>

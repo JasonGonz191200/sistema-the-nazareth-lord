@@ -1,0 +1,219 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Auditoría - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <h1 class="h3 mb-3">Auditoría</h1>
+
+            <div class="card card-body">
+                <!-- Filtros: se aplican solos, sin botón de buscar -->
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label small mb-1" for="fUsuario">Usuario</label>
+                        <input id="fUsuario" type="search" class="form-control" autocomplete="off" placeholder="Nombre de usuario">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="fDesde">Desde</label>
+                        <input id="fDesde" type="date" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="fHasta">Hasta</label>
+                        <input id="fHasta" type="date" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small mb-1" for="fTipo">Tipo de acción</label>
+                        <select id="fTipo" class="form-select"></select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="fResultado">Resultado</label>
+                        <select id="fResultado" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="Exitoso">Exitoso</option>
+                            <option value="Fallido">Fallido</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <button type="button" id="btnLimpiar" class="btn btn-sm btn-outline-secondary">Limpiar filtros</button>
+                </div>
+
+                <!-- Mensajes (sin resultados, errores...) -->
+                <div id="mensaje"></div>
+
+                <!-- Tabla de registros -->
+                <div id="resultado" class="table-responsive"></div>
+
+                <!-- Paginación -->
+                <div id="paginacion" class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3 d-none">
+                    <div id="textoPagina" class="text-muted small"></div>
+                    <div class="btn-group">
+                        <button type="button" id="btnAnterior" class="btn btn-outline-secondary btn-sm">← Anterior</button>
+                        <button type="button" id="btnSiguiente" class="btn btn-outline-secondary btn-sm">Siguiente →</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+    // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+    const TAMANO = 25;             // registros por página
+    let pagina = 1;                // página actual
+    let totalRegistros = 0;
+    let temporizador = null;
+    let contadorBusqueda = 0;      // para ignorar respuestas viejas
+
+    // ---------- Utilidades ----------
+    function mostrarMensaje(tipo, texto) {
+      const caja = el('mensaje');
+      caja.replaceChildren();
+      if (!tipo) return;
+      const d = document.createElement('div');
+      d.className = `alert alert-${tipo}`;
+      d.textContent = texto;      // textContent: nunca se interpreta como código
+      caja.appendChild(d);
+    }
+
+    // Fecha y hora local legibles
+    function fechaHora(iso) {
+      const d = new Date(iso);
+      return isNaN(d) ? '—' : d.toLocaleString('es-NI', { dateStyle: 'short', timeStyle: 'medium' });
+    }
+
+    // ---------- Tipos de acción para el filtro ----------
+    async function cargarTipos() {
+      const r = await api('/api/auditoria/tipos-accion');
+      const sel = el('fTipo');
+      sel.replaceChildren();
+      const todos = document.createElement('option');
+      todos.value = '';
+      todos.textContent = 'Todas';
+      sel.appendChild(todos);
+      for (const t of (r.ok ? r.datos : [])) {
+        const o = document.createElement('option');
+        o.value = t;
+        o.textContent = t;
+        sel.appendChild(o);
+      }
+    }
+
+    // ---------- Consulta ----------
+    async function consultar() {
+      const mi = ++contadorBusqueda;
+
+      // Se arman los filtros que tengan valor
+      const p = new URLSearchParams({ pagina: String(pagina), tamano: String(TAMANO) });
+      if (el('fUsuario').value.trim()) p.set('usuario', el('fUsuario').value.trim());
+      if (el('fDesde').value) p.set('desde', el('fDesde').value);
+      if (el('fHasta').value) p.set('hasta', el('fHasta').value);
+      if (el('fTipo').value) p.set('tipoAccion', el('fTipo').value);
+      if (el('fResultado').value) p.set('resultado', el('fResultado').value);
+
+      mostrarMensaje('secondary', 'Buscando...');
+      const r = await api('/api/auditoria?' + p.toString());
+      if (mi !== contadorBusqueda) return;     // llegó tarde: ya hay otra consulta
+
+      if (!r.ok) {
+        el('resultado').replaceChildren();
+        el('paginacion').classList.add('d-none');
+        mostrarMensaje('danger', mensajeError(r));
+        return;
+      }
+
+      const d = r.datos;
+      totalRegistros = d.total;
+      if (d.total === 0) {
+        el('resultado').replaceChildren();
+        el('paginacion').classList.add('d-none');
+        mostrarMensaje('warning', d.mensaje);
+        return;
+      }
+      mostrarMensaje(null, '');
+      dibujar(d.registros);
+
+      // Paginación
+      const desde = (pagina - 1) * TAMANO + 1;
+      const hasta = Math.min(pagina * TAMANO, d.total);
+      el('textoPagina').textContent = `Mostrando ${desde} a ${hasta} de ${d.total} registros`;
+      el('btnAnterior').disabled = pagina <= 1;
+      el('btnSiguiente').disabled = pagina * TAMANO >= d.total;
+      el('paginacion').classList.remove('d-none');
+    }
+
+    function dibujar(registros) {
+      const tabla = document.createElement('table');
+      tabla.className = 'table table-sm table-hover align-middle';
+      const cab = tabla.createTHead().insertRow();
+      for (const t of ['Fecha y hora', 'Usuario', 'Acción', 'Registro afectado', 'Resultado', 'IP', 'Descripción']) {
+        const th = document.createElement('th');
+        th.textContent = t;
+        cab.appendChild(th);
+      }
+
+      const cuerpo = tabla.createTBody();
+      for (const r of registros) {
+        const tr = cuerpo.insertRow();
+        tr.insertCell().textContent = fechaHora(r.fechaHora);
+        tr.insertCell().textContent = r.usuario ?? '—';
+        tr.insertCell().textContent = r.tipoAccion;
+        tr.insertCell().textContent = r.entidad ? `${r.entidad}${r.registroAfectado ? ' #' + r.registroAfectado : ''}` : '—';
+
+        const tdRes = tr.insertCell();
+        const b = document.createElement('span');
+        b.className = 'badge ' + (r.resultado === 'Exitoso' ? 'text-bg-success' : 'text-bg-danger');
+        b.textContent = r.resultado;
+        tdRes.appendChild(b);
+
+        tr.insertCell().textContent = r.ip ?? '—';
+        const tdDesc = tr.insertCell();
+        tdDesc.textContent = r.descripcion ?? '—';
+        tdDesc.style.minWidth = '14rem';
+      }
+      el('resultado').replaceChildren(tabla);
+    }
+
+    // ---------- Filtros ----------
+    // Cualquier cambio de filtro vuelve a la página 1
+    function filtrar() { pagina = 1; consultar(); }
+
+    // El usuario se filtra mientras se escribe (espera 300 ms sin teclear)
+    el('fUsuario').addEventListener('input', () => {
+      clearTimeout(temporizador);
+      temporizador = setTimeout(filtrar, 300);
+    });
+    for (const id of ['fDesde', 'fHasta', 'fTipo', 'fResultado']) el(id).addEventListener('change', filtrar);
+
+    el('btnLimpiar').addEventListener('click', () => {
+      el('fUsuario').value = '';
+      el('fDesde').value = '';
+      el('fHasta').value = '';
+      el('fTipo').value = '';
+      el('fResultado').value = '';
+      filtrar();
+    });
+
+    el('btnAnterior').addEventListener('click', () => { if (pagina > 1) { pagina--; consultar(); } });
+    el('btnSiguiente').addEventListener('click', () => { if (pagina * TAMANO < totalRegistros) { pagina++; consultar(); } });
+
+    // ---------- Inicio ----------
+    montarLayout('auditoria.html');
+    cargarTipos();
+    consultar();
+    </script>
+</body>
+</html>

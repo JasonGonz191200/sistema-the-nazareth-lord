@@ -10,19 +10,19 @@ const MENU = [
 
     { seccion: 'Académico' },
     { texto: 'Cursos y períodos', href: 'cursos.html', activo: true },
-    { texto: 'Grupos', href: 'grupos.html', activo: false },
-    { texto: 'Asistencia', href: 'asistencia.html', activo: false },
+    { texto: 'Grupos', href: 'grupos.html', activo: true },
+    { texto: 'Asistencia', href: 'asistencia.html', activo: true },
 
     { seccion: 'Finanzas' },
-    { texto: 'Matrículas', href: 'matriculas.html', activo: false },
-    { texto: 'Pagos', href: 'pagos.html', activo: false },
+    { texto: 'Matrículas', href: 'matriculas.html', activo: true },
+    { texto: 'Pagos', href: 'pagos.html', activo: true },
 
     { seccion: 'Consultas' },
-    { texto: 'Reportes', href: 'reportes.html', activo: false },
-    { texto: 'Auditoría', href: 'auditoria.html', activo: false },
+    { texto: 'Reportes', href: 'reportes.html', activo: true },
+    { texto: 'Auditoría', href: 'auditoria.html', activo: true },
 
     { seccion: 'Administración' },
-    { texto: 'Usuarios', href: 'usuarios.html', activo: false },
+    { texto: 'Usuarios', href: 'usuarios.html', activo: true },
 ];
 
 // Construye el menú dentro de <div id="menu"></div>.

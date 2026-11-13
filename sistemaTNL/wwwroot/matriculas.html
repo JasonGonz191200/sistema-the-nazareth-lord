@@ -1,0 +1,496 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Matrículas - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h1 class="h3 mb-0">Matrículas</h1>
+                <button type="button" id="btnNueva" class="btn btn-primario">+ Nueva matrícula</button>
+            </div>
+
+            <div class="card card-body">
+                <!-- Filtros: período (consulta al servidor); texto y estado (locales, mientras se escribe) -->
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-5">
+                        <select id="filtroPeriodo" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-md">
+                        <input id="filtro" type="search" class="form-control" autocomplete="off"
+                               placeholder="Filtrar por estudiante, carné, curso o grupo">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <select id="filtroEstado" class="form-select">
+                            <option value="">Todos los estados</option>
+                            <option value="1">Habilitadas</option>
+                            <option value="0">Inhabilitadas</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Mensajes (sin resultados, errores...) -->
+                <div id="mensaje"></div>
+
+                <!-- Tabla de matrículas -->
+                <div id="resultado" class="table-responsive"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Ventana para crear o editar una matrícula ===== -->
+    <div class="modal fade" id="modalMatricula" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="modalTitulo">Nueva matrícula</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalMensaje"></div>
+
+                    <!-- Solo al crear: buscar y elegir al estudiante -->
+                    <div id="bloqueEstudiante" class="mb-3">
+                        <label class="form-label" for="campoBuscarEst">Estudiante</label>
+                        <input id="campoBuscarEst" type="search" class="form-control" autocomplete="off"
+                               placeholder="Escriba nombre, cédula o carné (mínimo 2 letras)">
+                        <div id="listaEstudiantes" class="list-group mt-1"></div>
+                        <!-- Estudiante ya elegido -->
+                        <div id="estElegido" class="alert alert-secondary d-none mt-2 mb-0 d-flex justify-content-between align-items-center"></div>
+                    </div>
+
+                    <!-- Solo al editar: resumen de lo que no se puede cambiar -->
+                    <div id="resumenEdicion" class="alert alert-secondary d-none"></div>
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="selPeriodo">Período</label>
+                            <select id="selPeriodo" class="form-select"></select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="selGrupo">Grupo</label>
+                            <select id="selGrupo" class="form-select"></select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="campoObs">Observaciones (opcional)</label>
+                            <input id="campoObs" class="form-control" maxlength="250">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btnGuardar" class="btn btn-primario">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Ventana de detalle (con los cobros generados) ===== -->
+    <div class="modal fade" id="modalDetalle" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="detalleTitulo">Detalle de la matrícula</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="detalleMensaje"></div>
+                    <div id="detalleContenido"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+    // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+    let matriculas = [];           // matrículas traídas del servidor (según el filtro de período)
+    let periodos = [];             // todos los períodos (para los desplegables)
+    let idEditando = null;         // null = se está creando; número = se está editando esa matrícula
+    let estudianteElegido = null;  // { idEstudiante, nombre, numeroCarne } al crear
+    const modal = new bootstrap.Modal(el('modalMatricula'));
+    const modalDetalle = new bootstrap.Modal(el('modalDetalle'));
+
+    // ---------- Utilidades ----------
+    // Quita acentos y pasa a minúsculas, para filtrar sin distinguir acentos
+    function normalizar(t) {
+      return (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    }
+
+    // "2026-12-01" -> "01/12/2026" (sin pasar por Date para evitar corrimientos de zona horaria)
+    function fechaCorta(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.substring(0, 10).split('-');
+      return `${d}/${m}/${a}`;
+    }
+
+    // Dinero en dólares con dos decimales
+    function dinero(n) {
+      return n === null || n === undefined ? '—' : 'US$ ' + Number(n).toFixed(2);
+    }
+
+    // Mensaje en una caja cualquiera (tipo null = limpiar)
+    function poner(idCaja, tipo, texto) {
+      const caja = el(idCaja);
+      caja.replaceChildren();
+      if (!tipo) return;
+      const d = document.createElement('div');
+      d.className = `alert alert-${tipo}`;
+      d.textContent = texto;      // textContent: nunca se interpreta como código
+      caja.appendChild(d);
+    }
+    const mostrarMensaje = (t, x) => poner('mensaje', t, x);
+    const mensajeModal = (t, x) => poner('modalMensaje', t, x);
+
+    function etiquetaEstado(habilitado) {
+      const s = document.createElement('span');
+      s.className = 'badge ' + (habilitado ? 'text-bg-success' : 'text-bg-secondary');
+      s.textContent = habilitado ? 'Habilitada' : 'Inhabilitada';
+      return s;
+    }
+
+    // Llena un <select> con opciones { valor, texto }
+    function llenarSelect(select, opciones, textoVacio) {
+      select.replaceChildren();
+      const vacia = document.createElement('option');
+      vacia.value = '';
+      vacia.textContent = textoVacio;
+      select.appendChild(vacia);
+      for (const o of opciones) {
+        const op = document.createElement('option');
+        op.value = String(o.valor);
+        op.textContent = o.texto;
+        select.appendChild(op);
+      }
+    }
+
+    function textoPeriodo(p) {
+      return `${p.curso} - ${p.modalidad} (inicia ${fechaCorta(p.fechaInicioCurso)})${p.estado === 'Finalizado' ? ' [Finalizado]' : ''}`;
+    }
+
+    // ---------- Datos de apoyo ----------
+    async function cargarApoyo() {
+      const rp = await api('/api/periodos');
+      periodos = rp.ok ? rp.datos : [];
+      llenarSelect(el('filtroPeriodo'), periodos.map((p) => ({ valor: p.idPeriodo, texto: textoPeriodo(p) })), 'Todos los períodos');
+    }
+
+    // Grupos habilitados del período elegido (para el desplegable del formulario)
+    async function cargarGrupos(idPeriodo, seleccionado = null) {
+      if (!idPeriodo) { llenarSelect(el('selGrupo'), [], 'Seleccione primero el período'); return; }
+      const r = await api(`/api/grupos?idPeriodo=${idPeriodo}`);
+      if (!r.ok) { mensajeModal('danger', mensajeError(r)); llenarSelect(el('selGrupo'), [], 'Error al cargar'); return; }
+      // Se muestran los habilitados, más el grupo actual si se está editando
+      const lista = r.datos.filter((g) => g.estado || g.idGrupo === seleccionado);
+      llenarSelect(el('selGrupo'),
+        lista.map((g) => ({ valor: g.idGrupo, texto: `${g.identificacion} - ${g.docente} (${g.inscritos} inscritos)` })),
+        lista.length === 0 ? 'Este período no tiene grupos habilitados' : 'Seleccione...');
+      if (seleccionado) el('selGrupo').value = String(seleccionado);
+    }
+
+    el('selPeriodo').addEventListener('change', () => cargarGrupos(el('selPeriodo').value));
+
+    // ---------- Lista ----------
+    async function cargarMatriculas() {
+      mostrarMensaje('secondary', 'Cargando...');
+      const idPeriodo = el('filtroPeriodo').value;
+      const r = await api('/api/matriculas' + (idPeriodo ? `?idPeriodo=${idPeriodo}` : ''));
+      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+      matriculas = r.datos;
+      mostrarMensaje(null, '');
+      dibujar();
+    }
+
+    function dibujar() {
+      const f = normalizar(el('filtro').value.trim());
+      const est = el('filtroEstado').value;
+      const filas = matriculas.filter((m) =>
+        normalizar([m.estudiante, m.numeroCarne, m.curso, m.modalidad, m.grupo].join(' ')).includes(f) &&
+        (est === '' || (est === '1') === m.estado));
+
+      if (filas.length === 0) {
+        el('resultado').replaceChildren();
+        mostrarMensaje('warning', matriculas.length === 0 ? 'No hay matrículas para mostrar.' : 'Ninguna matrícula coincide con el filtro.');
+        return;
+      }
+      mostrarMensaje(null, '');
+
+      const tabla = document.createElement('table');
+      tabla.className = 'table table-hover align-middle';
+      const cab = tabla.createTHead().insertRow();
+      for (const t of ['Carné', 'Estudiante', 'Curso', 'Grupo', 'Fecha', 'Estado', '']) {
+        const th = document.createElement('th');
+        th.textContent = t;
+        cab.appendChild(th);
+      }
+
+      const cuerpo = tabla.createTBody();
+      for (const m of filas) {
+        const tr = cuerpo.insertRow();
+        tr.insertCell().textContent = m.numeroCarne ?? '—';
+        tr.insertCell().textContent = m.estudiante;
+        tr.insertCell().textContent = `${m.curso} (${m.modalidad})`;
+        tr.insertCell().textContent = m.grupo;
+        tr.insertCell().textContent = fechaCorta(m.fechaMatricula);
+        tr.insertCell().appendChild(etiquetaEstado(m.estado));
+
+        const acciones = tr.insertCell();
+        acciones.className = 'text-end text-nowrap';
+
+        const bDetalle = document.createElement('button');
+        bDetalle.type = 'button';
+        bDetalle.className = 'btn btn-sm btn-outline-secondary me-2';
+        bDetalle.textContent = 'Detalle';
+        bDetalle.addEventListener('click', () => abrirDetalle(m.idMatricula));
+        acciones.appendChild(bDetalle);
+
+        // Una matrícula inhabilitada no se modifica ni se vuelve a habilitar
+        if (m.estado) {
+          const bEditar = document.createElement('button');
+          bEditar.type = 'button';
+          bEditar.className = 'btn btn-sm btn-outline-primary me-2';
+          bEditar.textContent = 'Editar';
+          bEditar.addEventListener('click', () => abrirEdicion(m));
+
+          const bInh = document.createElement('button');
+          bInh.type = 'button';
+          bInh.className = 'btn btn-sm btn-outline-danger';
+          bInh.textContent = 'Inhabilitar';
+          bInh.addEventListener('click', () => inhabilitar(m, bInh));
+
+          acciones.append(bEditar, bInh);
+        }
+      }
+      el('resultado').replaceChildren(tabla);
+    }
+
+    el('filtro').addEventListener('input', dibujar);
+    el('filtroEstado').addEventListener('change', dibujar);
+    el('filtroPeriodo').addEventListener('change', cargarMatriculas);
+
+    // ---------- Detalle con obligaciones de pago ----------
+    async function abrirDetalle(id) {
+      poner('detalleMensaje', null, '');
+      el('detalleContenido').replaceChildren();
+      const r = await api(`/api/matriculas/${id}`);
+      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+      const { matricula: m, obligaciones } = r.datos;
+
+      el('detalleTitulo').textContent = `Matrícula de ${m.estudiante}`;
+      const caja = el('detalleContenido');
+      const linea = (etq, val) => {
+        const p = document.createElement('p');
+        p.className = 'mb-1';
+        const b = document.createElement('strong');
+        b.textContent = etq + ': ';
+        p.append(b, document.createTextNode(String(val)));
+        return p;
+      };
+      caja.append(
+        linea('Carné', m.numeroCarne ?? '—'),
+        linea('Curso', `${m.curso} (${m.modalidad})`),
+        linea('Grupo', `${m.grupo} - ${m.nivel}`),
+        linea('Fecha de matrícula', fechaCorta(m.fechaMatricula)),
+        linea('Estado', m.estado ? 'Habilitada' : `Inhabilitada el ${fechaCorta(m.fechaInhabilitacion)}`),
+        linea('Observaciones', m.observaciones ?? '—'),
+      );
+
+      const titulo = document.createElement('h3');
+      titulo.className = 'h6 text-uppercase text-muted mt-4';
+      titulo.textContent = 'Cobros generados';
+      caja.appendChild(titulo);
+
+      if (obligaciones.length === 0) {
+        const p = document.createElement('p');
+        p.textContent = 'Esta matrícula no tiene cobros.';
+        caja.appendChild(p);
+      } else {
+        const tabla = document.createElement('table');
+        tabla.className = 'table table-sm align-middle';
+        const cab = tabla.createTHead().insertRow();
+        for (const t of ['Concepto', 'Mes', 'Precio', 'Abonado', 'Saldo', 'Estado']) {
+          const th = document.createElement('th');
+          th.textContent = t;
+          cab.appendChild(th);
+        }
+        const cuerpo = tabla.createTBody();
+        for (const o of obligaciones) {
+          const tr = cuerpo.insertRow();
+          tr.insertCell().textContent = o.descripcion;
+          tr.insertCell().textContent = o.mes ? fechaCorta(o.mes).substring(3) : '—';   // mm/aaaa
+          tr.insertCell().textContent = dinero(o.precioFinalUsd);
+          tr.insertCell().textContent = dinero(o.totalAbonadoUsd);
+          tr.insertCell().textContent = dinero(o.saldoPendienteUsd);
+          tr.insertCell().textContent = o.estado;
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'table-responsive';
+        wrap.appendChild(tabla);
+        caja.appendChild(wrap);
+      }
+      modalDetalle.show();
+    }
+
+    // ---------- Inhabilitar ----------
+    async function inhabilitar(m, boton) {
+      if (!confirm(`¿Inhabilitar la matrícula de ${m.estudiante}?\n\nLa matrícula no se borra, pero no se puede volver a habilitar.`)) return;
+      boton.disabled = true;
+      const r = await api(`/api/matriculas/${m.idMatricula}/inhabilitar`, { method: 'PUT' });
+      boton.disabled = false;
+      if (!r.ok) { mostrarMensaje('danger', mensajeError(r)); return; }
+      await cargarMatriculas();
+      mostrarMensaje('success', `Matrícula de ${m.estudiante} inhabilitada.`);
+    }
+
+    // ---------- Búsqueda de estudiante (al crear) ----------
+    let temporizador = null;
+    let contadorBusqueda = 0;      // para ignorar respuestas viejas
+
+    async function buscarEstudiantes() {
+      const mi = ++contadorBusqueda;
+      const texto = el('campoBuscarEst').value.trim();
+      const lista = el('listaEstudiantes');
+      if (texto.length < 2) { lista.replaceChildren(); return; }
+
+      const r = await api(`/api/matriculas/estudiantes?buscar=${encodeURIComponent(texto)}`);
+      if (mi !== contadorBusqueda) return;     // llegó tarde: ya hay otra búsqueda
+      lista.replaceChildren();
+      if (!r.ok) { mensajeModal('danger', mensajeError(r)); return; }
+      if (r.datos.length === 0) {
+        const v = document.createElement('div');
+        v.className = 'list-group-item text-muted';
+        v.textContent = 'No se encontraron estudiantes habilitados con ese dato.';
+        lista.appendChild(v);
+        return;
+      }
+      for (const e of r.datos) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'list-group-item list-group-item-action';
+        b.textContent = `${e.nombre} - carné ${e.numeroCarne ?? 'sin carné'}${e.cedula ? ' - ' + e.cedula : ''}`;
+        b.addEventListener('click', () => elegirEstudiante(e));
+        lista.appendChild(b);
+      }
+    }
+
+    el('campoBuscarEst').addEventListener('input', () => {
+      clearTimeout(temporizador);
+      temporizador = setTimeout(buscarEstudiantes, 300);
+    });
+
+    function elegirEstudiante(e) {
+      estudianteElegido = e;
+      el('listaEstudiantes').replaceChildren();
+      el('campoBuscarEst').classList.add('d-none');
+
+      const caja = el('estElegido');
+      caja.classList.remove('d-none');
+      caja.replaceChildren();
+      const t = document.createElement('span');
+      t.textContent = `${e.nombre} (carné ${e.numeroCarne ?? 'sin carné'})`;
+      const quitar = document.createElement('button');
+      quitar.type = 'button';
+      quitar.className = 'btn btn-sm btn-outline-secondary';
+      quitar.textContent = 'Cambiar';
+      quitar.addEventListener('click', quitarEstudiante);
+      caja.append(t, quitar);
+    }
+
+    function quitarEstudiante() {
+      estudianteElegido = null;
+      el('estElegido').classList.add('d-none');
+      el('campoBuscarEst').classList.remove('d-none');
+      el('campoBuscarEst').value = '';
+      el('campoBuscarEst').focus();
+    }
+
+    // ---------- Crear / editar ----------
+    el('btnNueva').addEventListener('click', async () => {
+      idEditando = null;
+      el('modalTitulo').textContent = 'Nueva matrícula';
+      mensajeModal(null, '');
+      el('resumenEdicion').classList.add('d-none');
+      el('bloqueEstudiante').classList.remove('d-none');
+      quitarEstudiante();
+      // Solo períodos habilitados
+      const hab = periodos.filter((p) => p.estado === 'Habilitado');
+      llenarSelect(el('selPeriodo'), hab.map((p) => ({ valor: p.idPeriodo, texto: textoPeriodo(p) })), 'Seleccione...');
+      el('selPeriodo').disabled = false;
+      el('selPeriodo').value = el('filtroPeriodo').value && hab.some((p) => String(p.idPeriodo) === el('filtroPeriodo').value)
+        ? el('filtroPeriodo').value : '';
+      await cargarGrupos(el('selPeriodo').value);
+      el('campoObs').value = '';
+      modal.show();
+    });
+
+    async function abrirEdicion(m) {
+      idEditando = m.idMatricula;
+      el('modalTitulo').textContent = 'Editar matrícula';
+      mensajeModal(null, '');
+      el('bloqueEstudiante').classList.add('d-none');
+
+      // El estudiante y el período no se pueden cambiar: se muestran como resumen
+      const res = el('resumenEdicion');
+      res.classList.remove('d-none');
+      res.textContent = `${m.estudiante} (carné ${m.numeroCarne ?? '—'}) - ${m.curso} (${m.modalidad}). Solo puede cambiar de grupo dentro del mismo período y las observaciones.`;
+
+      const p = periodos.find((x) => x.idPeriodo === m.idPeriodo);
+      llenarSelect(el('selPeriodo'), p ? [{ valor: p.idPeriodo, texto: textoPeriodo(p) }] : [], 'Seleccione...');
+      el('selPeriodo').value = String(m.idPeriodo);
+      el('selPeriodo').disabled = true;
+      await cargarGrupos(m.idPeriodo, m.idGrupo);
+
+      // Las observaciones no vienen en la lista resumida, por eso se leen de la matrícula
+      const d = await api(`/api/matriculas/${m.idMatricula}`);
+      el('campoObs').value = d.ok ? (d.datos.matricula.observaciones ?? '') : '';
+      modal.show();
+    }
+
+    el('btnGuardar').addEventListener('click', async () => {
+      mensajeModal(null, '');
+      const idGrupo = Number(el('selGrupo').value);
+      const observaciones = el('campoObs').value.trim() || null;
+
+      if (!idEditando && !estudianteElegido) { mensajeModal('warning', 'Busque y elija al estudiante.'); return; }
+      if (!el('selPeriodo').value) { mensajeModal('warning', 'Seleccione el período.'); return; }
+      if (!idGrupo) { mensajeModal('warning', 'Seleccione el grupo.'); return; }
+
+      const boton = el('btnGuardar');
+      boton.disabled = true;
+      // Las reglas (grupo lleno, período no vigente, matrícula repetida...) las valida el servidor
+      const r = idEditando
+        ? await api(`/api/matriculas/${idEditando}`, { method: 'PUT', body: { idGrupo, observaciones } })
+        : await api('/api/matriculas', { method: 'POST', body: { idEstudiante: estudianteElegido.idEstudiante, idGrupo, observaciones } });
+      boton.disabled = false;
+
+      if (!r.ok) { mensajeModal('danger', mensajeError(r)); return; }
+
+      modal.hide();
+      await cargarMatriculas();
+      const m = r.datos.matricula;
+      mostrarMensaje('success', idEditando
+        ? 'Matrícula actualizada.'
+        : `Matrícula registrada para ${m.estudiante}. Carné: ${m.numeroCarne ?? '—'}. Se generaron ${r.datos.obligaciones.length} cobros (botón Detalle).`);
+    });
+
+    // ---------- Inicio ----------
+    montarLayout('matriculas.html');
+    cargarApoyo().then(cargarMatriculas);
+    </script>
+</body>
+</html>

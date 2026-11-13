@@ -52,8 +52,8 @@ public class MatriculasController : ControllerBase
         {
             var s = buscar.Trim();
             q = q.Where(e =>
-                e.IdPersonaNavigation.NombreCompleto.Contains(s) ||
-                (e.NumeroCarne != null && e.NumeroCarne.Contains(s)) ||
+    EF.Functions.Collate(e.IdPersonaNavigation.NombreCompleto, "Latin1_General_CI_AI").Contains(s) ||
+    (e.NumeroCarne != null && e.NumeroCarne.Contains(s)) ||
                 (e.IdPersonaNavigation.Cedula != null && e.IdPersonaNavigation.Cedula.Contains(s)));
         }
 
@@ -79,8 +79,8 @@ public class MatriculasController : ControllerBase
         if (idPeriodo is not null) q = q.Where(m => m.IdPeriodo == idPeriodo);
         if (idGrupo is not null) q = q.Where(m => m.IdGrupo == idGrupo);
         if (idEstudiante is not null) q = q.Where(m => m.IdEstudiante == idEstudiante);
-
-        return Ok(await Proyectar(q).OrderByDescending(m => m.IdMatricula).ToListAsync());
+        // Se ordena ANTES de proyectar (EF puede fallar al ordenar sobre el resultado ya armado)
+        return Ok(await Proyectar(q.OrderByDescending(m => m.IdMatricula)).ToListAsync());
     }
 
     // GET api/matriculas/{id}

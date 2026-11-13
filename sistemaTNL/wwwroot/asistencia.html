@@ -1,0 +1,381 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Asistencia - The Nazareth Lord</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/estilos.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex estructura">
+
+        <!-- El menú lo dibuja layout.js -->
+        <div id="menu"></div>
+
+        <main class="contenido p-3 p-md-4">
+            <h1 class="h3 mb-3">Asistencia</h1>
+
+            <!-- ===== 1. Grupo y fecha de la clase ===== -->
+            <div class="card card-body mb-3">
+                <h2 class="h6 text-uppercase text-muted">1. Grupo y fecha de la clase</h2>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="selPeriodo">Período</label>
+                        <select id="selPeriodo" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="selGrupo">Grupo</label>
+                        <select id="selGrupo" class="form-select"></select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="campoFecha">Fecha de la clase</label>
+                        <input id="campoFecha" type="date" class="form-control" disabled>
+                        <div id="ayudaFecha" class="form-text"></div>
+                    </div>
+                    <div class="col-12 col-md-4 d-flex align-items-end">
+                        <button type="button" id="btnCargarLista" class="btn btn-primario" disabled>Cargar lista</button>
+                    </div>
+                </div>
+                <div id="mensajeGrupo" class="mt-3"></div>
+            </div>
+
+            <!-- ===== 2. Tomar la lista ===== -->
+            <div id="panelLista" class="card card-body mb-3 d-none">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <h2 class="h6 text-uppercase text-muted mb-0">2. Lista de asistencia</h2>
+                    <button type="button" id="btnTodosPresentes" class="btn btn-sm btn-outline-success">Marcar todos presentes</button>
+                </div>
+                <div id="mensajeLista"></div>
+                <div id="tablaLista" class="table-responsive"></div>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                    <div id="resumenLista" class="fw-semibold"></div>
+                    <button type="button" id="btnGuardarLista" class="btn btn-primario">Guardar asistencia</button>
+                </div>
+            </div>
+
+            <!-- ===== 3. Clases con asistencia registrada ===== -->
+            <div id="panelClases" class="card card-body d-none">
+                <h2 class="h6 text-uppercase text-muted">3. Clases registradas del grupo</h2>
+                <div id="mensajeClases"></div>
+                <div id="tablaClases" class="table-responsive"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===== Ventana con la asistencia de una clase ===== -->
+    <div class="modal fade" id="modalClase" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="claseTitulo">Clase</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body" id="claseContenido"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/layout.js"></script>
+    <script>
+    // @ts-nocheck   (desactiva la revisión de tipos del editor para este bloque)
+
+    let periodos = [];             // todos los períodos
+    let grupoActual = null;        // { idGrupo, identificacion, ... } del grupo elegido
+    let periodoActual = null;      // período del grupo elegido (trae las fechas del curso)
+    let estudiantes = [];          // lista de la clase cargada
+    const modalClase = new bootstrap.Modal(el('modalClase'));
+
+    // ---------- Utilidades ----------
+    // "2026-12-01" -> "01/12/2026" (sin pasar por Date para evitar corrimientos de zona horaria)
+    function fechaCorta(iso) {
+      if (!iso) return '—';
+      const [a, m, d] = iso.substring(0, 10).split('-');
+      return `${d}/${m}/${a}`;
+    }
+
+    // Fecha de hoy (hora local) en formato yyyy-mm-dd
+    function hoyIso() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    // Mensaje en una caja cualquiera (tipo null = limpiar)
+    function poner(idCaja, tipo, texto) {
+      const caja = el(idCaja);
+      caja.replaceChildren();
+      if (!tipo) return;
+      const d = document.createElement('div');
+      d.className = `alert alert-${tipo}`;
+      d.textContent = texto;      // textContent: nunca se interpreta como código
+      caja.appendChild(d);
+    }
+
+    function llenarSelect(select, opciones, textoVacio) {
+      select.replaceChildren();
+      const vacia = document.createElement('option');
+      vacia.value = '';
+      vacia.textContent = textoVacio;
+      select.appendChild(vacia);
+      for (const o of opciones) {
+        const op = document.createElement('option');
+        op.value = String(o.valor);
+        op.textContent = o.texto;
+        select.appendChild(op);
+      }
+    }
+
+    function cabecera(tabla, titulos) {
+      const cab = tabla.createTHead().insertRow();
+      for (const t of titulos) {
+        const th = document.createElement('th');
+        th.textContent = t;
+        cab.appendChild(th);
+      }
+    }
+
+    function textoPeriodo(p) {
+      return `${p.curso} - ${p.modalidad} (${fechaCorta(p.fechaInicioCurso)} al ${fechaCorta(p.fechaFinCurso)})`;
+    }
+
+    // ---------- Período y grupo ----------
+    async function cargarPeriodos() {
+      const r = await api('/api/periodos');
+      periodos = r.ok ? r.datos : [];
+      llenarSelect(el('selPeriodo'), periodos.map((p) => ({ valor: p.idPeriodo, texto: textoPeriodo(p) })), 'Seleccione...');
+      llenarSelect(el('selGrupo'), [], 'Seleccione primero el período');
+    }
+
+    el('selPeriodo').addEventListener('change', async () => {
+      reiniciarPaneles();
+      periodoActual = periodos.find((p) => String(p.idPeriodo) === el('selPeriodo').value) ?? null;
+      if (!periodoActual) { llenarSelect(el('selGrupo'), [], 'Seleccione primero el período'); return; }
+
+      // Grupos del período (también los inhabilitados: sus clases pasadas siguen consultándose)
+      const r = await api(`/api/grupos?idPeriodo=${periodoActual.idPeriodo}`);
+      if (!r.ok) { poner('mensajeGrupo', 'danger', mensajeError(r)); return; }
+      llenarSelect(el('selGrupo'),
+        r.datos.map((g) => ({ valor: g.idGrupo, texto: `${g.identificacion} - ${g.docente}${g.estado ? '' : ' [Inhabilitado]'}` })),
+        r.datos.length === 0 ? 'Este período no tiene grupos' : 'Seleccione...');
+      grupos = r.datos;
+    });
+    let grupos = [];
+
+    el('selGrupo').addEventListener('change', () => {
+      reiniciarPaneles();
+      grupoActual = grupos.find((g) => String(g.idGrupo) === el('selGrupo').value) ?? null;
+      const fecha = el('campoFecha');
+      if (!grupoActual) { fecha.disabled = true; el('btnCargarLista').disabled = true; el('ayudaFecha').textContent = ''; return; }
+
+      // La fecha debe estar dentro del curso y no ser futura
+      const ini = periodoActual.fechaInicioCurso.substring(0, 10);
+      const fin = periodoActual.fechaFinCurso.substring(0, 10);
+      const maxima = fin < hoyIso() ? fin : hoyIso();
+      fecha.min = ini;
+      fecha.max = maxima;
+      fecha.value = (hoyIso() >= ini && hoyIso() <= fin) ? hoyIso() : '';
+      fecha.disabled = false;
+      el('btnCargarLista').disabled = false;
+      el('ayudaFecha').textContent = `Entre ${fechaCorta(ini)} y ${fechaCorta(maxima)}.`;
+
+      el('panelClases').classList.remove('d-none');
+      cargarClases();
+    });
+
+    // Limpia las secciones 2 y 3 al cambiar de período o de grupo
+    function reiniciarPaneles() {
+      estudiantes = [];
+      el('panelLista').classList.add('d-none');
+      el('panelClases').classList.add('d-none');
+      poner('mensajeGrupo', null, '');
+      poner('mensajeLista', null, '');
+    }
+
+    // ---------- Cargar la lista de la clase ----------
+    el('btnCargarLista').addEventListener('click', async () => {
+      poner('mensajeGrupo', null, '');
+      poner('mensajeLista', null, '');
+      el('panelLista').classList.add('d-none');
+      const fecha = el('campoFecha').value;
+      if (!fecha) { poner('mensajeGrupo', 'warning', 'Indique la fecha de la clase.'); return; }
+
+      const r = await api(`/api/asistencia/lista?idGrupo=${grupoActual.idGrupo}&fecha=${fecha}`);
+      if (!r.ok) { poner('mensajeGrupo', 'danger', mensajeError(r)); return; }
+
+      // RN032: si la clase ya tiene asistencia no se puede registrar de nuevo
+      if (r.datos.yaRegistrada) {
+        poner('mensajeGrupo', 'info', `La clase del ${fechaCorta(fecha)} ya tiene asistencia registrada. Puede verla en "Clases registradas".`);
+        return;
+      }
+      if (r.datos.estudiantes.length === 0) {
+        poner('mensajeGrupo', 'warning', 'No hay estudiantes en la lista de esa clase (ninguna matrícula vigente en esa fecha).');
+        return;
+      }
+
+      estudiantes = r.datos.estudiantes;
+      dibujarLista();
+      el('panelLista').classList.remove('d-none');
+    });
+
+    // Una fila por estudiante, con botones Presente / Ausente
+    function dibujarLista() {
+      const tabla = document.createElement('table');
+      tabla.className = 'table align-middle';
+      cabecera(tabla, ['Carné', 'Estudiante', 'Asistencia']);
+      const cuerpo = tabla.createTBody();
+
+      for (const e of estudiantes) {
+        const tr = cuerpo.insertRow();
+        tr.insertCell().textContent = e.numeroCarne ?? '—';
+        tr.insertCell().textContent = e.nombre;
+
+        const grupo = document.createElement('div');
+        grupo.className = 'btn-group btn-group-sm';
+        for (const [valor, texto, clase] of [['Presente', 'Presente', 'success'], ['Ausente', 'Ausente', 'danger']]) {
+          const id = `${valor}_${e.idMatricula}`;
+          const radio = document.createElement('input');
+          radio.type = 'radio';
+          radio.className = 'btn-check';
+          radio.name = `asist_${e.idMatricula}`;
+          radio.id = id;
+          radio.value = valor;
+          radio.addEventListener('change', actualizarResumen);
+          const lbl = document.createElement('label');
+          lbl.className = `btn btn-outline-${clase}`;
+          lbl.htmlFor = id;
+          lbl.textContent = texto;
+          grupo.append(radio, lbl);
+        }
+        tr.insertCell().appendChild(grupo);
+      }
+      el('tablaLista').replaceChildren(tabla);
+      actualizarResumen();
+    }
+
+    // Estado elegido de un estudiante (o null si falta)
+    function estadoDe(idMatricula) {
+      const marcado = document.querySelector(`input[name="asist_${idMatricula}"]:checked`);
+      return marcado ? marcado.value : null;
+    }
+
+    function actualizarResumen() {
+      let pres = 0, aus = 0;
+      for (const e of estudiantes) {
+        const s = estadoDe(e.idMatricula);
+        if (s === 'Presente') pres++;
+        else if (s === 'Ausente') aus++;
+      }
+      const faltan = estudiantes.length - pres - aus;
+      el('resumenLista').textContent = `Presentes: ${pres}  |  Ausentes: ${aus}  |  Sin marcar: ${faltan}`;
+    }
+
+    el('btnTodosPresentes').addEventListener('click', () => {
+      for (const e of estudiantes) document.getElementById(`Presente_${e.idMatricula}`).checked = true;
+      actualizarResumen();
+    });
+
+    // ---------- Guardar ----------
+    el('btnGuardarLista').addEventListener('click', async () => {
+      poner('mensajeLista', null, '');
+      const faltan = estudiantes.filter((e) => !estadoDe(e.idMatricula));
+      if (faltan.length > 0) {
+        poner('mensajeLista', 'warning', `Falta marcar a ${faltan.length} estudiante(s). Todos deben quedar como Presente o Ausente.`);
+        return;
+      }
+      const fecha = el('campoFecha').value;
+      if (!confirm(`¿Guardar la asistencia de la clase del ${fechaCorta(fecha)}?\n\n${el('resumenLista').textContent}\n\nUna vez guardada, la asistencia no se puede modificar.`)) return;
+
+      const boton = el('btnGuardarLista');
+      boton.disabled = true;
+      const r = await api('/api/asistencia', {
+        method: 'POST',
+        body: {
+          idGrupo: grupoActual.idGrupo,
+          fechaClase: fecha,
+          detalles: estudiantes.map((e) => ({ idMatricula: e.idMatricula, estado: estadoDe(e.idMatricula) })),
+        },
+      });
+      boton.disabled = false;
+
+      if (!r.ok) { poner('mensajeLista', 'danger', mensajeError(r)); return; }
+
+      el('panelLista').classList.add('d-none');
+      poner('mensajeGrupo', 'success', `Asistencia registrada: ${r.datos.presentes} presentes y ${r.datos.ausentes} ausentes.`);
+      cargarClases();
+    });
+
+    // ---------- Clases registradas ----------
+    async function cargarClases() {
+      el('tablaClases').replaceChildren();
+      const r = await api(`/api/asistencia?idGrupo=${grupoActual.idGrupo}`);
+      if (!r.ok) { poner('mensajeClases', 'danger', mensajeError(r)); return; }
+      if (r.datos.length === 0) { poner('mensajeClases', 'info', 'Este grupo todavía no tiene clases con asistencia registrada.'); return; }
+      poner('mensajeClases', null, '');
+
+      const tabla = document.createElement('table');
+      tabla.className = 'table table-hover align-middle';
+      cabecera(tabla, ['Fecha de la clase', 'Presentes', 'Ausentes', 'Registrada', '']);
+      const cuerpo = tabla.createTBody();
+      for (const c of r.datos) {
+        const tr = cuerpo.insertRow();
+        tr.insertCell().textContent = fechaCorta(c.fechaClase);
+        tr.insertCell().textContent = String(c.presentes);
+        tr.insertCell().textContent = String(c.ausentes);
+        tr.insertCell().textContent = fechaCorta(c.fechaRegistro);
+        const acc = tr.insertCell();
+        acc.className = 'text-end';
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-sm btn-outline-secondary';
+        b.textContent = 'Ver';
+        b.addEventListener('click', () => verClase(c.idRegistro));
+        acc.appendChild(b);
+      }
+      el('tablaClases').replaceChildren(tabla);
+    }
+
+    async function verClase(idRegistro) {
+      const r = await api(`/api/asistencia/${idRegistro}`);
+      if (!r.ok) { poner('mensajeClases', 'danger', mensajeError(r)); return; }
+      const { registro, presentes, ausentes, estudiantes: lista } = r.datos;
+
+      el('claseTitulo').textContent = `${registro.grupo} - clase del ${fechaCorta(registro.fechaClase)}`;
+      const caja = el('claseContenido');
+      caja.replaceChildren();
+
+      const p = document.createElement('p');
+      p.textContent = `Presentes: ${presentes}  |  Ausentes: ${ausentes}  |  Registrada por ${registro.registradoPor} el ${fechaCorta(registro.fechaRegistro)}`;
+      caja.appendChild(p);
+
+      const tabla = document.createElement('table');
+      tabla.className = 'table table-sm';
+      cabecera(tabla, ['Carné', 'Estudiante', 'Asistencia']);
+      const cuerpo = tabla.createTBody();
+      for (const e of lista) {
+        const tr = cuerpo.insertRow();
+        tr.insertCell().textContent = e.numeroCarne ?? '—';
+        tr.insertCell().textContent = e.nombre;
+        const td = tr.insertCell();
+        const b = document.createElement('span');
+        b.className = 'badge ' + (e.estado === 'Presente' ? 'text-bg-success' : 'text-bg-danger');
+        b.textContent = e.estado;
+        td.appendChild(b);
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'table-responsive';
+      wrap.appendChild(tabla);
+      caja.appendChild(wrap);
+      modalClase.show();
+    }
+
+    // ---------- Inicio ----------
+    montarLayout('asistencia.html');
+    cargarPeriodos();
+    </script>
+</body>
+</html>
