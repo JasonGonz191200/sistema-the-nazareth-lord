@@ -127,7 +127,7 @@ public class ComprobantesController : ControllerBase
                         }
                     });
 
-                    // Totales y tipo de cambio utilizado
+                    // Totales y tipo de cambio utilizado jasin GB
                     col.Item().PaddingTop(8).AlignRight().Column(tot =>
                     {
                         tot.Item().Text($"Tipo de cambio: C$ {d.TipoCambio.ToString("0.####", ci)} por 1 USD");

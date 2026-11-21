@@ -74,7 +74,7 @@ public class AsistenciaController : ControllerBase
             .ToListAsync());
 
     // GET api/asistencia/{id}
-    // Una clase con la asistencia de cada estudiante
+    // Una clase con la asistencia de cada estudiante JASONgb
     [HttpGet("{id:int}")]
     public async Task<IActionResult> Obtener(int id)
     {

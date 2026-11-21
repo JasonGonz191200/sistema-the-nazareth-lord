@@ -49,7 +49,7 @@ public class ConsultasController : ControllerBase
                 Habilitado = e.Estado
             });
 
-        // Con texto se limita a 50 coincidencias; el listado completo no lleva límite
+        // Con texto se limita a 50 coincidencias; el listado completo no lleva límite Jason GB
         var resultados = string.IsNullOrEmpty(s)
             ? await consulta.ToListAsync()
             : await consulta.Take(50).ToListAsync();

@@ -139,7 +139,7 @@ public class CierreInscripcionController : ControllerBase
         });
     }
 
-    // Lee un parámetro numérico de la tabla parametro
+    // Lee un parámetro numérico de la tabla parametro jason GB
     private async Task<int> LeerParametroAsync(string clave, int porDefecto)
     {
         var valor = await _db.Parametros.AsNoTracking()

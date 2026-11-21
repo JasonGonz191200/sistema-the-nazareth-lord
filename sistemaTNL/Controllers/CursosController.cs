@@ -86,7 +86,7 @@ public class CursosController : ControllerBase
     }
 
     // PUT api/cursos/{id}/estado
-    // Ejemplo: PUT api/cursos/1/estado con { "habilitado": false }
+    // Ejemplo: PUT api/cursos/1/estado con { Jaaon GB}
     [HttpPut("{id:int}/estado")]
     public async Task<IActionResult> CambiarEstado(int id, CambiarEstadoCursoRequest req)
     {

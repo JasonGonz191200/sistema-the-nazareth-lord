@@ -80,7 +80,7 @@ public class AuditoriaController : ControllerBase
 
         var total = await q.CountAsync();
 
-        // Lo más reciente primero
+        // Lo más reciente primero JASON gb
         var registros = await q
             .OrderByDescending(r => r.IdAuditoria)
             .Skip((pagina - 1) * tamano)

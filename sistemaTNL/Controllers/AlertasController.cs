@@ -99,7 +99,7 @@ public class AlertasController : ControllerBase
             }
             else
             {
-                // La inscripción terminó y el período sigue habilitado: falta cerrarla
+                // La inscripción terminó y el período sigue habilitado: falta cerrarla jason GB
                 var porCerrar = gruposDelPeriodo.Count(g => inscritos.GetValueOrDefault(g.IdGrupo) < min);
                 alertas.Add(new
                 {

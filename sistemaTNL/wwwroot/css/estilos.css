@@ -25,7 +25,7 @@
     background: linear-gradient(160deg, var(--color-primario), var(--color-primario-oscuro));
 }
 
-    /* Círculos decorativos suaves en la esquina del panel */
+    /* Círculos decorativos suaves en la esquina del panel jason GB*/
     .login-marca::before,
     .login-marca::after {
         content: "";
@@ -100,7 +100,7 @@
     max-width: 380px;
 }
 
-/* En el celular el panel de marca queda arriba y más compacto */
+/* En el celular el panel de marca queda arriba y más compacto jason Gb*/
 @media (max-width: 768px) {
     .login-pagina {
         grid-template-columns: 1fr;
@@ -142,7 +142,7 @@
         color: #fff;
     }
 
-/* ---------- Estructura general (menú lateral + contenido) ---------- */
+/* ---------- Estructura general (menú lateral + contenido) ----JASON_GB------ */
 .barra-lateral {
     width: 250px;
     min-height: 100vh;
